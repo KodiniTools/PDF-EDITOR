@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import PdfPageCanvas from '@/components/PdfPageCanvas.vue'
 import { HIGHLIGHT_OPACITY } from '@/services/pdfExport'
 import { displaySize, normalizeRotation, TEXT_LINE_HEIGHT } from '@/lib/geometry'
+import type { TextLine } from '@/lib/textLines'
+import { getTextLines } from '@/services/pdfRenderer'
 import { useDocumentStore } from '@/stores/document'
-import type { Annotation, PageRef } from '@/types/pdf'
+import type { Annotation, FontFamily, PageRef } from '@/types/pdf'
 
 const props = defineProps<{ page: PageRef }>()
 const emit = defineEmits<{ requestSignature: [] }>()
@@ -13,6 +15,12 @@ const emit = defineEmits<{ requestSignature: [] }>()
 const store = useDocumentStore()
 
 const MIN_SIZE = 4
+/** Bildschirmschriften passend zu den PDF-Standardschriften im Export. */
+const CSS_FONTS: Record<FontFamily, string> = {
+  sans: 'Helvetica, Arial, sans-serif',
+  serif: '"Times New Roman", Times, serif',
+  mono: '"Courier New", Courier, monospace',
+}
 const SIGNATURE_WIDTH = 160
 
 const rotation = computed(() => normalizeRotation(props.page.baseRotation + props.page.rotation))
@@ -25,6 +33,8 @@ const renderError = ref<string | null>(null)
 
 interface DragState {
   mode: 'move' | 'resize' | 'create'
+  /** Bei mode 'create': welche Fläche entsteht. */
+  createKind?: 'highlight' | 'cover'
   pointerId: number
   startX: number
   startY: number
@@ -39,9 +49,11 @@ const cursor = computed(() => {
     case 'text':
       return 'cursor-text'
     case 'highlight':
+    case 'cover':
     case 'signature':
       return 'cursor-crosshair'
     case 'select':
+    case 'edit-text':
       return 'cursor-default'
     default: {
       const exhaustive: never = store.tool
@@ -146,10 +158,12 @@ function onOverlayPointerDown(e: PointerEvent): void {
       e.preventDefault()
       return
     }
-    case 'highlight': {
+    case 'highlight':
+    case 'cover': {
       overlay.value?.setPointerCapture(e.pointerId)
       drag.value = {
         mode: 'create',
+        createKind: store.tool,
         pointerId: e.pointerId,
         startX: p.x,
         startY: p.y,
@@ -163,6 +177,7 @@ function onOverlayPointerDown(e: PointerEvent): void {
       void placeSignature(p)
       return
     case 'select':
+    case 'edit-text':
       return
     default: {
       const exhaustive: never = store.tool
@@ -241,7 +256,11 @@ function onPointerUp(e: PointerEvent): void {
   if (d.mode === 'create' && preview.value) {
     const r = preview.value
     if (r.width >= MIN_SIZE && r.height >= MIN_SIZE) {
-      store.addAnnotation(props.page.id, { kind: 'highlight', color: store.highlightColor, ...r })
+      if (d.createKind === 'cover') {
+        store.addAnnotation(props.page.id, { kind: 'cover', color: store.coverColor, ...r })
+      } else {
+        store.addAnnotation(props.page.id, { kind: 'highlight', color: store.highlightColor, ...r })
+      }
     }
   }
   drag.value = null
@@ -272,6 +291,51 @@ function onTextInput(a: Annotation, e: Event): void {
 }
 
 onBeforeUnmount(stopEditing)
+
+// ---- Vorhandenen Text bearbeiten ------------------------------------------
+const textLines = ref<TextLine[]>([])
+const textLinesState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
+let textLinesRequest = 0
+
+watch(
+  () => [store.tool, props.page.sourceId, props.page.sourceIndex, rotation.value] as const,
+  async ([tool, sourceId, sourceIndex, rot]) => {
+    if (tool !== 'edit-text') return
+    const request = ++textLinesRequest
+    textLinesState.value = 'loading'
+    try {
+      const lines = await getTextLines(sourceId, sourceIndex, rot)
+      if (request !== textLinesRequest) return // veraltete Antwort
+      textLines.value = lines
+      textLinesState.value = 'ready'
+    } catch (err) {
+      if (request !== textLinesRequest) return
+      console.error('[pdf-editor] Texterkennung fehlgeschlagen', err)
+      textLines.value = []
+      textLinesState.value = 'error'
+    }
+  },
+  { immediate: true },
+)
+
+/** Zeilen, die noch nicht ersetzt wurden. */
+const editableLines = computed(() => {
+  const replaced = new Set(
+    props.page.annotations.flatMap((a) =>
+      a.kind === 'text' && a.replacesKey ? [a.replacesKey] : [],
+    ),
+  )
+  return textLines.value.filter((l) => !replaced.has(l.key))
+})
+
+function onLinePointerDown(e: PointerEvent, line: TextLine): void {
+  if (e.button !== 0) return
+  e.stopPropagation()
+  e.preventDefault()
+  stopEditing()
+  const id = store.replaceTextLine(props.page.id, line)
+  if (id) void startTextEdit(id)
+}
 
 function px(v: number): string {
   return `${v * zoom.value}px`
@@ -304,10 +368,45 @@ function px(v: number): string {
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
     >
+      <!-- Erkannte Textzeilen (Werkzeug „Text bearbeiten“) -->
+      <template v-if="store.tool === 'edit-text'">
+        <div
+          v-for="line in editableLines"
+          :key="line.key"
+          class="absolute cursor-text rounded-sm outline-1 outline-blue-400/40 hover:bg-blue-500/15 hover:outline-blue-500"
+          :style="{
+            left: px(line.x - 1),
+            top: px(line.top - 1),
+            width: px(line.width + 2),
+            height: px(line.height + 2),
+          }"
+          :title="`Bearbeiten: ${line.text}`"
+          data-testid="text-line"
+          @pointerdown="onLinePointerDown($event, line)"
+        />
+      </template>
+
       <template v-for="a in page.annotations" :key="a.id">
+        <!-- Abdeckung -->
+        <div
+          v-if="a.kind === 'cover'"
+          class="absolute cursor-move"
+          :class="{
+            'outline-2 outline-blue-500 outline-dashed': store.selectedAnnotationId === a.id,
+          }"
+          :style="{
+            left: px(a.x),
+            top: px(a.y),
+            width: px(a.width),
+            height: px(a.height),
+            backgroundColor: a.color,
+          }"
+          @pointerdown="onAnnotationPointerDown($event, a, 'move')"
+        />
+
         <!-- Markierung -->
         <div
-          v-if="a.kind === 'highlight'"
+          v-else-if="a.kind === 'highlight'"
           class="absolute cursor-move"
           :class="{
             'outline-2 outline-blue-500 outline-dashed': store.selectedAnnotationId === a.id,
@@ -343,7 +442,7 @@ function px(v: number): string {
 
         <!-- Text -->
         <div
-          v-else
+          v-else-if="a.kind === 'text'"
           class="absolute"
           :class="{
             'outline-2 outline-blue-500 outline-dashed': store.selectedAnnotationId === a.id,
@@ -355,7 +454,7 @@ function px(v: number): string {
             color: a.color,
             fontSize: px(a.fontSize),
             lineHeight: String(TEXT_LINE_HEIGHT),
-            fontFamily: 'Helvetica, Arial, sans-serif',
+            fontFamily: CSS_FONTS[a.font ?? 'sans'],
           }"
           @pointerdown="onAnnotationPointerDown($event, a, 'move')"
           @dblclick.stop="startTextEdit(a.id)"
@@ -396,10 +495,26 @@ function px(v: number): string {
           top: px(preview.y),
           width: px(preview.width),
           height: px(preview.height),
-          backgroundColor: store.highlightColor,
-          opacity: HIGHLIGHT_OPACITY,
+          backgroundColor: drag?.createKind === 'cover' ? store.coverColor : store.highlightColor,
+          opacity: drag?.createKind === 'cover' ? 1 : HIGHLIGHT_OPACITY,
         }"
       />
+
+      <p
+        v-if="
+          store.tool === 'edit-text' &&
+          textLinesState !== 'loading' &&
+          textLinesState !== 'idle' &&
+          textLines.length === 0
+        "
+        class="pointer-events-none absolute inset-x-4 top-4 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800 shadow"
+      >
+        {{
+          textLinesState === 'error'
+            ? 'Text konnte nicht erkannt werden.'
+            : 'Auf dieser Seite wurde kein bearbeitbarer Text gefunden (z. B. eingescanntes Dokument).'
+        }}
+      </p>
     </div>
   </div>
 </template>

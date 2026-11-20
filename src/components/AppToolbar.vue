@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { useDocumentStore } from '@/stores/document'
-import type { Tool } from '@/types/pdf'
+import type { FontFamily, Tool } from '@/types/pdf'
 
 const emit = defineEmits<{
   openFiles: [files: File[]]
@@ -15,9 +15,62 @@ const fileInput = ref<HTMLInputElement | null>(null)
 
 const tools: { id: Tool; label: string; hint: string }[] = [
   { id: 'select', label: 'Auswählen', hint: 'Annotationen verschieben (V)' },
+  {
+    id: 'edit-text',
+    label: 'Text bearbeiten',
+    hint: 'Vorhandene Textzeile anklicken, um sie zu ändern (E)',
+  },
   { id: 'text', label: 'Text', hint: 'Klicken, um Text einzufügen (T)' },
   { id: 'highlight', label: 'Markieren', hint: 'Bereich aufziehen (H)' },
+  { id: 'cover', label: 'Abdecken', hint: 'Bereich weiß/schwarz abdecken (A)' },
   { id: 'signature', label: 'Signatur', hint: 'Klicken, um Signatur zu platzieren (S)' },
+]
+
+/** Ausgewählte Textannotation, deren Größe/Farbe in der Toolbar geändert wird. */
+const selectedText = computed(() => {
+  const a = store.selectedAnnotation
+  return a?.kind === 'text' ? a : null
+})
+
+const selectedFontSize = computed({
+  get: () => selectedText.value?.fontSize ?? 0,
+  set: (value: number) => {
+    const page = store.selectedPage
+    const n = Number(value)
+    if (!page || !selectedText.value || !Number.isFinite(n) || n < 4 || n > 200) return
+    store.updateAnnotation(page.id, selectedText.value.id, { fontSize: n })
+  },
+})
+
+const selectedColor = computed({
+  get: () => selectedText.value?.color ?? '#000000',
+  set: (value: string) => {
+    const page = store.selectedPage
+    if (page && selectedText.value) {
+      store.updateAnnotation(page.id, selectedText.value.id, { color: value })
+    }
+  },
+})
+
+const selectedFont = computed({
+  get: () => selectedText.value?.font ?? 'sans',
+  set: (value: FontFamily) => {
+    const page = store.selectedPage
+    if (page && selectedText.value) {
+      store.updateAnnotation(page.id, selectedText.value.id, { font: value })
+    }
+  },
+})
+
+const fontOptions: { value: FontFamily; label: string }[] = [
+  { value: 'sans', label: 'Helvetica' },
+  { value: 'serif', label: 'Times' },
+  { value: 'mono', label: 'Courier' },
+]
+
+const coverPresets = [
+  { color: '#ffffff', label: 'Weiß' },
+  { color: '#000000', label: 'Schwarz' },
 ]
 
 function onFileChange(e: Event): void {
@@ -75,7 +128,27 @@ function chooseTool(id: Tool): void {
         </button>
       </div>
 
-      <label v-if="store.tool === 'text'" class="flex items-center gap-1 text-sm">
+      <label v-if="selectedText" class="flex items-center gap-1 text-sm" title="Ausgewählter Text">
+        Auswahl: Größe
+        <input
+          v-model.lazy.number="selectedFontSize"
+          type="number"
+          min="4"
+          max="200"
+          step="0.5"
+          class="w-16 rounded border border-gray-300 px-1 py-0.5"
+          data-testid="selected-font-size"
+        />
+        <select
+          v-model="selectedFont"
+          class="rounded border border-gray-300 px-1 py-0.5"
+          title="Schrift der Auswahl"
+        >
+          <option v-for="f in fontOptions" :key="f.value" :value="f.value">{{ f.label }}</option>
+        </select>
+        <input v-model="selectedColor" type="color" class="h-7 w-8" title="Textfarbe der Auswahl" />
+      </label>
+      <label v-else-if="store.tool === 'text'" class="flex items-center gap-1 text-sm">
         Größe
         <input
           v-model.number="store.fontSize"
@@ -90,6 +163,24 @@ function chooseTool(id: Tool): void {
         Farbe
         <input v-model="store.highlightColor" type="color" class="h-7 w-8" title="Markierfarbe" />
       </label>
+      <div
+        v-if="store.tool === 'cover'"
+        class="flex items-center gap-1 text-sm"
+        title="Deckt nur optisch ab: der Inhalt darunter bleibt in der PDF auslesbar."
+      >
+        <button
+          v-for="p in coverPresets"
+          :key="p.color"
+          type="button"
+          class="tb-btn"
+          :class="{ 'ring-2 ring-blue-500': store.coverColor === p.color }"
+          @click="store.coverColor = p.color"
+        >
+          {{ p.label }}
+        </button>
+        <input v-model="store.coverColor" type="color" class="h-7 w-8" title="Abdeckfarbe" />
+        <span class="text-xs text-amber-700">nur optisch</span>
+      </div>
       <button
         v-if="store.tool === 'signature'"
         type="button"

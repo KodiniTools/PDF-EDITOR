@@ -55,7 +55,14 @@ function onDrop(e: DragEvent): void {
   if (files.length > 0) void openFiles(files)
 }
 
-const shortcuts: Record<string, Tool> = { v: 'select', t: 'text', h: 'highlight', s: 'signature' }
+const shortcuts: Record<string, Tool> = {
+  v: 'select',
+  e: 'edit-text',
+  t: 'text',
+  h: 'highlight',
+  a: 'cover',
+  s: 'signature',
+}
 
 function onKeyDown(e: KeyboardEvent): void {
   const target = e.target as HTMLElement | null

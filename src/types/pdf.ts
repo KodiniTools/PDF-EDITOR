@@ -1,6 +1,9 @@
 /** Seitendrehung im Uhrzeigersinn, wie sie ein PDF-Viewer anzeigt. */
 export type Rotation = 0 | 90 | 180 | 270
 
+/** Schriftfamilie für Textannotationen; im Export eine der PDF-Standardschriften. */
+export type FontFamily = 'sans' | 'serif' | 'mono'
+
 /** Rechteck in PDF-Benutzerkoordinaten (Punkte, Ursprung unten links). */
 export interface PdfBox {
   x: number
@@ -36,10 +39,27 @@ export interface TextAnnotation extends AnnotationBase {
   text: string
   fontSize: number
   color: string
+  /** Standard: 'sans' (Helvetica). */
+  font?: FontFamily
+  /** Gesetzt, wenn der Text eine vorhandene PDF-Zeile ersetzt (Schlüssel der Zeile). */
+  replacesKey?: string
+  /** Zugehörige Abdeckung; wird mit dem Text zusammen gelöscht. */
+  coverId?: string
 }
 
 export interface HighlightAnnotation extends AnnotationBase {
   kind: 'highlight'
+  width: number
+  height: number
+  color: string
+}
+
+/**
+ * Deckende Fläche (Weiß-Abdeckung oder Schwärzung).
+ * Achtung: verdeckt nur optisch, der darunterliegende Inhalt bleibt im PDF erhalten.
+ */
+export interface CoverAnnotation extends AnnotationBase {
+  kind: 'cover'
   width: number
   height: number
   color: string
@@ -53,7 +73,7 @@ export interface ImageAnnotation extends AnnotationBase {
   dataUrl: string
 }
 
-export type Annotation = TextAnnotation | HighlightAnnotation | ImageAnnotation
+export type Annotation = TextAnnotation | HighlightAnnotation | CoverAnnotation | ImageAnnotation
 export type AnnotationKind = Annotation['kind']
 
 /** Verweis auf eine Seite einer Quelldatei plus Bearbeitungen. */
@@ -71,7 +91,7 @@ export interface PageRef {
   annotations: Annotation[]
 }
 
-export type Tool = 'select' | 'text' | 'highlight' | 'signature'
+export type Tool = 'select' | 'edit-text' | 'text' | 'highlight' | 'cover' | 'signature'
 
 /** Omit, das über Union-Mitglieder verteilt wird. */
 export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never

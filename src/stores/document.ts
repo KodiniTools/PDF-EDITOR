@@ -2,11 +2,24 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { looksLikePdf, readFileBytes } from '@/lib/file'
-import { displaySize, normalizeRotation, rotateAnnotation } from '@/lib/geometry'
+import {
+  displaySize,
+  normalizeRotation,
+  rotateAnnotation,
+  TEXT_BASELINE_RATIO,
+} from '@/lib/geometry'
+import type { TextLine } from '@/lib/textLines'
 import { createId } from '@/lib/id'
 import { exportPdf, PdfEditorError, validatePdf } from '@/services/pdfExport'
 import { closeDocument, openDocument } from '@/services/pdfRenderer'
-import type { AnnotationPatch, NewAnnotation, PageRef, SourceDocument, Tool } from '@/types/pdf'
+import type {
+  Annotation,
+  AnnotationPatch,
+  NewAnnotation,
+  PageRef,
+  SourceDocument,
+  Tool,
+} from '@/types/pdf'
 
 /** Maximale Dateigröße pro PDF (Schutz vor Speicherproblemen im Browser). */
 export const MAX_FILE_BYTES = 100 * 1024 * 1024
@@ -41,6 +54,7 @@ export const useDocumentStore = defineStore('document', () => {
   const textColor = ref('#111827')
   const highlightColor = ref('#facc15')
   const fontSize = ref(14)
+  const coverColor = ref('#ffffff')
 
   const hasDocument = computed(() => pages.value.length > 0)
   const selectedPage = computed(
@@ -48,6 +62,9 @@ export const useDocumentStore = defineStore('document', () => {
   )
   const selectedPageIndex = computed(() =>
     pages.value.findIndex((p) => p.id === selectedPageId.value),
+  )
+  const selectedAnnotation = computed<Annotation | null>(
+    () => selectedPage.value?.annotations.find((a) => a.id === selectedAnnotationId.value) ?? null,
   )
   const suggestedFileName = computed(() => {
     const first = sources.value[0]?.name.replace(/\.pdf$/i, '') ?? 'dokument'
@@ -171,11 +188,55 @@ export const useDocumentStore = defineStore('document', () => {
     if (a) Object.assign(a, patch)
   }
 
+  /** Entfernt eine Annotation; ein ersetzter Text nimmt seine Abdeckung mit. */
   function removeAnnotation(pageId: string, annotationId: string): void {
     const page = findPage(pageId)
     if (!page) return
-    page.annotations = page.annotations.filter((a) => a.id !== annotationId)
-    if (selectedAnnotationId.value === annotationId) selectedAnnotationId.value = null
+    const target = page.annotations.find((a) => a.id === annotationId)
+    const ids = new Set([annotationId])
+    if (target?.kind === 'text' && target.coverId) ids.add(target.coverId)
+    page.annotations = page.annotations.filter((a) => !ids.has(a.id))
+    if (selectedAnnotationId.value && ids.has(selectedAnnotationId.value)) {
+      selectedAnnotationId.value = null
+    }
+  }
+
+  /**
+   * Ersetzt eine vorhandene Textzeile: deckt sie weiß ab und legt an gleicher
+   * Stelle eine editierbare Textannotation an. Liefert die ID des Textes;
+   * existiert für die Zeile schon ein Ersatz, wird dieser zurückgegeben.
+   */
+  function replaceTextLine(pageId: string, line: TextLine): string | null {
+    const page = findPage(pageId)
+    if (!page) return null
+    const existing = page.annotations.find((a) => a.kind === 'text' && a.replacesKey === line.key)
+    if (existing) {
+      selectedAnnotationId.value = existing.id
+      return existing.id
+    }
+    const size = Math.max(4, Math.round(line.fontSize * 2) / 2)
+    const pad = Math.max(0.5, line.fontSize * 0.12)
+    const coverId = addAnnotation(pageId, {
+      kind: 'cover',
+      color: '#ffffff',
+      x: line.x - pad,
+      y: line.top - pad,
+      width: line.width + 2 * pad,
+      height: line.height + 2 * pad,
+    })
+    if (!coverId) return null
+    return addAnnotation(pageId, {
+      kind: 'text',
+      text: line.text,
+      fontSize: size,
+      color: '#000000',
+      font: line.font,
+      // Grundlinie der Ersatzzeile auf die Originalgrundlinie legen.
+      x: line.x,
+      y: line.baseline - size * TEXT_BASELINE_RATIO,
+      replacesKey: line.key,
+      coverId,
+    })
   }
 
   function setZoom(value: number): void {
@@ -226,7 +287,9 @@ export const useDocumentStore = defineStore('document', () => {
     textColor,
     highlightColor,
     fontSize,
+    coverColor,
     hasDocument,
+    selectedAnnotation,
     selectedPage,
     selectedPageIndex,
     suggestedFileName,
@@ -238,6 +301,7 @@ export const useDocumentStore = defineStore('document', () => {
     addAnnotation,
     updateAnnotation,
     removeAnnotation,
+    replaceTextLine,
     setZoom,
     setTool,
     exportDocument,

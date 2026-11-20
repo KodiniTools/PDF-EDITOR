@@ -87,7 +87,8 @@ export function rotateAnnotation<T extends Annotation>(
     direction === 'cw' ? { x: oldSize.height - y, y: x } : { x: y, y: oldSize.width - x }
 
   switch (a.kind) {
-    case 'highlight': {
+    case 'highlight':
+    case 'cover': {
       const p = direction === 'cw' ? map(a.x, a.y + a.height) : map(a.x + a.width, a.y)
       return { ...a, x: p.x, y: p.y, width: a.height, height: a.width }
     }

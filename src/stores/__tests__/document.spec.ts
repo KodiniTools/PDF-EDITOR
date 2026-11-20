@@ -15,6 +15,7 @@ vi.mock('@/services/pdfRenderer', () => ({
   },
   closeDocument: async () => undefined,
   renderPage: async () => undefined,
+  getTextLines: async () => [],
 }))
 
 async function pdfFile(name: string, pageCount: number): Promise<File> {
@@ -98,6 +99,43 @@ describe('document store', () => {
     store.removeAnnotation(page.id, id!)
     expect(store.pages[0]!.annotations).toHaveLength(0)
     expect(store.selectedAnnotationId).toBeNull()
+  })
+
+  it('ersetzt Textzeilen genau einmal und löscht die Abdeckung mit', async () => {
+    const store = useDocumentStore()
+    await store.addFiles([await pdfFile('a.pdf', 1)])
+    const page = store.pages[0]!
+    const line = {
+      key: 'k1',
+      text: 'Alt',
+      x: 10,
+      top: 20,
+      width: 30,
+      height: 12,
+      baseline: 29,
+      fontSize: 12.2,
+      font: 'serif' as const,
+    }
+    const id = store.replaceTextLine(page.id, line)
+    expect(store.replaceTextLine(page.id, line)).toBe(id) // kein Duplikat
+    const anns = store.pages[0]!.annotations
+    expect(anns.map((a) => a.kind)).toEqual(['cover', 'text'])
+    const text = anns[1]!
+    expect(text).toMatchObject({
+      kind: 'text',
+      fontSize: 12,
+      color: '#000000',
+      x: 10,
+      font: 'serif',
+    })
+    expect(text.kind === 'text' && text.coverId).toBe(anns[0]!.id)
+    // Abdeckung umschließt die Zeile
+    const cover = anns[0]!
+    expect(cover.kind === 'cover' && cover.x < 10 && cover.x + cover.width > 40).toBe(true)
+    expect(store.selectedAnnotation?.id).toBe(id)
+
+    store.removeAnnotation(page.id, id!)
+    expect(store.pages[0]!.annotations).toHaveLength(0)
   })
 
   it('begrenzt den Zoom', () => {

@@ -85,6 +85,17 @@ describe('exportPdf', () => {
         },
         { id: '2', kind: 'highlight', color: '#ffff00', x: 20, y: 40, width: 100, height: 20 },
         { id: '3', kind: 'image', dataUrl: PNG, x: 50, y: 50, width: 40, height: 20 },
+        {
+          id: '5',
+          kind: 'text',
+          text: 'Serif',
+          font: 'serif',
+          fontSize: 10,
+          color: '#000',
+          x: 0,
+          y: 0,
+        },
+        { id: '4', kind: 'cover', color: '#ffffff', x: 5, y: 5, width: 60, height: 15 },
       ],
     })
     const bytes = await exportPdf(sources, [page])

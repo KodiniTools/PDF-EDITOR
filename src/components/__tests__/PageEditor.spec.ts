@@ -9,6 +9,7 @@ vi.mock('@/services/pdfRenderer', () => ({
   openDocument: async () => [],
   closeDocument: async () => undefined,
   renderPage: async () => undefined,
+  getTextLines: async () => [],
 }))
 
 function setup() {
