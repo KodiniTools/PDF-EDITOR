@@ -11,6 +11,7 @@ Rein clientseitiger PDF-Editor: Dateien verlassen den Browser nicht.
 - **Abdecken** (Weiß/Schwarz/Farbe) – nur optisch, der Inhalt darunter bleibt in der PDF auslesbar
 - Annotationen: **Text** (mehrzeilig, Größe/Farbe), **Markierung** (Rechteck, Farbe), **Signatur** (zeichnen oder PNG/JPEG hochladen)
 - Annotationen verschieben, Markierung/Signatur skalieren, mit Entf löschen
+- **Rückgängig/Wiederholen** mit 50 Schritten (Strg+Z, Strg+Y bzw. Strg+Umschalt+Z, Buttons ↶/↷); Ziehen und Tippen zählen je als ein Schritt
 - **Export** als neue PDF (pdf-lib); Drehung und Annotationen werden eingebrannt
 
 Tastatur: `V` Auswählen, `E` Text bearbeiten, `T` Text, `A` Abdecken, `H` Markieren, `S` Signatur, `↑/↓` Seite wechseln, `Entf` Annotation löschen, `Esc` Auswahl aufheben.
@@ -62,7 +63,8 @@ src/
   lib/geometry.ts          Koordinaten: Anzeige (gedreht, oben links) → PDF (unten links)
   services/pdfRenderer.ts  pdf.js: Öffnen + Rendern (einzige Stelle mit pdf.js)
   services/pdfExport.ts    pdf-lib: Validierung + Export (rein, in Node testbar)
-  stores/document.ts       Pinia: Quellen, Seitenliste, Annotationen, Werkzeug, Zoom
+  stores/document.ts       Pinia: Quellen, Seitenliste, Annotationen, Werkzeug, Zoom, Verlauf
+  lib/undoHistory.ts       Snapshot-Verlauf (Undo/Redo, Bündelung, Limit)
   components/              Toolbar, Sidebar/Miniaturen, PageEditor (Overlay), SignatureDialog
   views/EditorView.vue     Layout, Datei-Drop, Tastaturkürzel, Download
 ```
@@ -76,5 +78,5 @@ src/
 - Verschlüsselte oder passwortgeschützte PDFs werden abgelehnt.
 - Export-Text nutzt Helvetica (WinAnsi): Umlaute/€ ok, nicht darstellbare Zeichen (z. B. Emoji, Kyrillisch) werden zu `?`. Abhilfe: eigene TTF via `@pdf-lib/fontkit` einbetten.
 - „Text bearbeiten“ ersetzt Zeilen optisch (Abdeckung + neuer Text) mit Helvetica/Times/Courier; die Originalschrift und Fett/Kursiv werden nicht übernommen, der Originaltext bleibt unter der Abdeckung erhalten. Gescannte PDFs (ohne Textebene) und gedreht laufender Text sind nicht bearbeitbar.
-- Kein Undo/Redo, keine Formularfelder.
+- Keine Formularfelder. Der Undo-Verlauf lebt nur im Browser-Tab (geht beim Neuladen verloren).
 - Formulare/Links der Quelle bleiben beim Kopieren der Seiten erhalten, Lesezeichen (Outline) nicht.

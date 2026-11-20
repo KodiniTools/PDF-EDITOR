@@ -69,12 +69,98 @@ describe('document store', () => {
     expect(store.selectedPageId).toBe(p0) // Nachfolger wird ausgewählt
   })
 
-  it('gibt die Quelle frei, wenn ihre letzte Seite gelöscht wird', async () => {
+  it('hält Quellen gelöschter Seiten für Undo bereit und gibt sie danach frei', async () => {
     const store = useDocumentStore()
     await store.addFiles([await pdfFile('a.pdf', 1)])
     store.removePage(store.pages[0]!.id)
     expect(store.pages).toHaveLength(0)
-    await vi.waitFor(() => expect(store.sources).toHaveLength(0))
+    expect(store.sources).toHaveLength(1) // noch im Verlauf
+
+    await store.reset()
+    expect(store.sources).toHaveLength(0)
+    expect(store.canUndo).toBe(false)
+  })
+
+  it('macht Seitenoperationen rückgängig und wiederholt sie', async () => {
+    const store = useDocumentStore()
+    await store.addFiles([await pdfFile('a.pdf', 3)])
+    const order = store.pages.map((p) => p.id)
+
+    store.movePage(0, 2)
+    store.rotatePage(store.pages[0]!.id, 'cw')
+    store.removePage(store.pages[1]!.id)
+    expect(store.undoCount).toBe(4) // Laden + 3 Änderungen
+
+    store.undo()
+    store.undo()
+    store.undo()
+    expect(store.pages.map((p) => p.id)).toEqual(order)
+    expect(store.pages.every((p) => p.rotation === 0)).toBe(true)
+
+    store.redo()
+    expect(store.pages.map((p) => p.id)).toEqual([order[1], order[2], order[0]])
+
+    // Undo des Ladens entfernt die Seiten, Redo bringt sie zurück
+    store.undo()
+    store.undo()
+    expect(store.pages).toHaveLength(0)
+    store.redo()
+    expect(store.pages).toHaveLength(3)
+  })
+
+  it('bündelt Ziehen und Tippen zu je einem Schritt', async () => {
+    const store = useDocumentStore()
+    await store.addFiles([await pdfFile('a.pdf', 1)])
+    const pageId = store.pages[0]!.id
+    const before = store.undoCount
+
+    const edit = store.newGroup('edit')
+    const id = store.addAnnotation(
+      pageId,
+      { kind: 'text', text: '', fontSize: 12, color: '#000', x: 0, y: 0 },
+      edit,
+    )!
+    for (const text of ['H', 'Ha', 'Hal', 'Hallo']) {
+      store.updateAnnotation(pageId, id, { text }, edit)
+    }
+    const drag = store.newGroup('drag')
+    for (let x = 1; x <= 10; x++) store.updateAnnotation(pageId, id, { x }, drag)
+    store.closeHistoryGroup()
+
+    expect(store.undoCount).toBe(before + 2)
+    store.undo()
+    expect(store.pages[0]!.annotations[0]).toMatchObject({ text: 'Hallo', x: 0 })
+    store.undo()
+    expect(store.pages[0]!.annotations).toHaveLength(0)
+  })
+
+  it('verwirft leere Schritte (Klick ohne Bewegung, Text ohne Eingabe)', async () => {
+    const store = useDocumentStore()
+    await store.addFiles([await pdfFile('a.pdf', 1)])
+    const pageId = store.pages[0]!.id
+    const before = store.undoCount
+
+    const edit = store.newGroup('edit')
+    const id = store.addAnnotation(
+      pageId,
+      { kind: 'text', text: '', fontSize: 12, color: '#000', x: 0, y: 0 },
+      edit,
+    )!
+    store.removeAnnotation(pageId, id, edit)
+    store.closeHistoryGroup()
+    expect(store.undoCount).toBe(before)
+  })
+
+  it('begrenzt den Verlauf auf 50 Schritte', async () => {
+    const store = useDocumentStore()
+    await store.addFiles([await pdfFile('a.pdf', 1)])
+    const pageId = store.pages[0]!.id
+    for (let i = 0; i < 60; i++) store.rotatePage(pageId, 'cw')
+    expect(store.undoCount).toBe(50)
+    let n = 0
+    while (store.undo()) n++
+    expect(n).toBe(50)
+    expect(store.canRedo).toBe(true)
   })
 
   it('verwaltet Annotationen und dreht sie mit', async () => {
