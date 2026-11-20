@@ -72,7 +72,19 @@ function onKeyDown(e: KeyboardEvent): void {
   ) {
     return
   }
-  if (showSignature.value || !store.hasDocument || e.ctrlKey || e.metaKey || e.altKey) return
+  if (showSignature.value || !store.hasDocument) return
+
+  // Undo/Redo: Strg/Cmd+Z, Strg/Cmd+Umschalt+Z, Strg+Y
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+    const key = e.key.toLowerCase()
+    if (key === 'z' || key === 'y') {
+      e.preventDefault()
+      if (key === 'y' || e.shiftKey) store.redo()
+      else store.undo()
+    }
+    return
+  }
+  if (e.altKey) return
 
   const page = store.selectedPage
   if ((e.key === 'Delete' || e.key === 'Backspace') && page && store.selectedAnnotationId) {

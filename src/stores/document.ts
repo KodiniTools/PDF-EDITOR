@@ -10,6 +10,7 @@ import {
 } from '@/lib/geometry'
 import type { TextLine } from '@/lib/textLines'
 import { createId } from '@/lib/id'
+import { createUndoHistory } from '@/lib/undoHistory'
 import { exportPdf, PdfEditorError, validatePdf } from '@/services/pdfExport'
 import { closeDocument, openDocument } from '@/services/pdfRenderer'
 import type {
@@ -23,6 +24,9 @@ import type {
 
 /** Maximale Dateigröße pro PDF (Schutz vor Speicherproblemen im Browser). */
 export const MAX_FILE_BYTES = 100 * 1024 * 1024
+
+/** Anzahl der Undo-Schritte. */
+export const HISTORY_LIMIT = 50
 
 export const ZOOM_MIN = 0.25
 export const ZOOM_MAX = 4
@@ -67,9 +71,59 @@ export const useDocumentStore = defineStore('document', () => {
     () => selectedPage.value?.annotations.find((a) => a.id === selectedAnnotationId.value) ?? null,
   )
   const suggestedFileName = computed(() => {
-    const first = sources.value[0]?.name.replace(/\.pdf$/i, '') ?? 'dokument'
-    return `${first}${sources.value.length > 1 ? '-zusammengefuehrt' : '-bearbeitet'}.pdf`
+    // Nur Quellen, die aktuell verwendet werden (nicht nur im Undo-Verlauf).
+    const used = new Set(pages.value.map((p) => p.sourceId))
+    const active = sources.value.filter((s) => used.has(s.id))
+    const first = active[0]?.name.replace(/\.pdf$/i, '') ?? 'dokument'
+    return `${first}${active.length > 1 ? '-zusammengefuehrt' : '-bearbeitet'}.pdf`
   })
+
+  // ---- Undo/Redo ------------------------------------------------------------
+  interface HistoryState {
+    pages: PageRef[]
+    selectedPageId: string | null
+  }
+
+  const history = createUndoHistory<HistoryState>({
+    limit: HISTORY_LIMIT,
+    read: () => ({ pages: pages.value, selectedPageId: selectedPageId.value }),
+    write: (state) => {
+      pages.value = state.pages
+      selectedPageId.value =
+        state.selectedPageId && state.pages.some((p) => p.id === state.selectedPageId)
+          ? state.selectedPageId
+          : (state.pages[0]?.id ?? null)
+      if (!selectedAnnotation.value) selectedAnnotationId.value = null
+    },
+    refs: (state) => [...new Set(state.pages.map((p) => p.sourceId))],
+    onChange: () => collectUnusedSources(),
+  })
+
+  let groupCounter = 0
+  /** Neuer Schlüssel, um zusammengehörige Änderungen (Ziehen, Tippen) zu bündeln. */
+  function newGroup(prefix: string): string {
+    groupCounter += 1
+    return `${prefix}:${groupCounter}`
+  }
+
+  /** Gibt Quellen frei, auf die weder aktuelle Seiten noch der Verlauf verweisen. */
+  function collectUnusedSources(): void {
+    const used = history.allRefs()
+    for (const p of pages.value) used.add(p.sourceId)
+    for (const s of sources.value) {
+      if (!used.has(s.id)) void releaseSource(s.id)
+    }
+  }
+
+  function undo(): boolean {
+    if (busy.value) return false
+    return history.undo()
+  }
+
+  function redo(): boolean {
+    if (busy.value) return false
+    return history.redo()
+  }
 
   function findPage(pageId: string): PageRef | undefined {
     return pages.value.find((p) => p.id === pageId)
@@ -77,8 +131,12 @@ export const useDocumentStore = defineStore('document', () => {
 
   /** Lädt PDFs und hängt deren Seiten an (Mehrfachauswahl = Zusammenführen). */
   async function addFiles(files: readonly File[]): Promise<AddFilesResult> {
+    if (files.length === 0) return { added: 0, errors: [] }
+    return history.recordAsync(() => loadFiles(files))
+  }
+
+  async function loadFiles(files: readonly File[]): Promise<AddFilesResult> {
     const result: AddFilesResult = { added: 0, errors: [] }
-    if (files.length === 0) return result
     busy.value = true
     error.value = null
     try {
@@ -134,16 +192,14 @@ export const useDocumentStore = defineStore('document', () => {
   function removePage(pageId: string): void {
     const index = pages.value.findIndex((p) => p.id === pageId)
     if (index < 0) return
-    const [removed] = pages.value.splice(index, 1)
+    pages.value.splice(index, 1)
     if (selectedPageId.value === pageId) {
       const next = pages.value[index] ?? pages.value[index - 1] ?? null
       selectedPageId.value = next?.id ?? null
       selectedAnnotationId.value = null
     }
-    // Quelle freigeben, wenn keine Seite mehr darauf verweist.
-    if (removed && !pages.value.some((p) => p.sourceId === removed.sourceId)) {
-      void releaseSource(removed.sourceId)
-    }
+    // Die Quelle bleibt geladen, solange der Undo-Verlauf auf sie verweist
+    // (siehe collectUnusedSources).
   }
 
   async function releaseSource(sourceId: string): Promise<void> {
@@ -263,11 +319,33 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  // Öffentliche, im Verlauf aufgezeichnete Varianten der Änderungsfunktionen.
+  // `group` bündelt aufeinanderfolgende Aufrufe zu einem Undo-Schritt.
+  const recorded = {
+    removePage: (pageId: string) => history.record(() => removePage(pageId)),
+    rotatePage: (pageId: string, direction: 'cw' | 'ccw') =>
+      history.record(() => rotatePage(pageId, direction)),
+    movePage: (from: number, to: number) => history.record(() => movePage(from, to)),
+    addAnnotation: (pageId: string, annotation: NewAnnotation, group?: string) =>
+      history.record(() => addAnnotation(pageId, annotation), group),
+    updateAnnotation: (
+      pageId: string,
+      annotationId: string,
+      patch: AnnotationPatch,
+      group?: string,
+    ) => history.record(() => updateAnnotation(pageId, annotationId, patch), group),
+    removeAnnotation: (pageId: string, annotationId: string, group?: string) =>
+      history.record(() => removeAnnotation(pageId, annotationId), group),
+    replaceTextLine: (pageId: string, line: TextLine, group?: string) =>
+      history.record(() => replaceTextLine(pageId, line), group),
+  }
+
   async function reset(): Promise<void> {
     const ids = [...sourceBytes.keys()]
     sourceBytes.clear()
     sources.value = []
     pages.value = []
+    history.clear()
     selectedPageId.value = null
     selectedAnnotationId.value = null
     error.value = null
@@ -295,13 +373,14 @@ export const useDocumentStore = defineStore('document', () => {
     suggestedFileName,
     addFiles,
     selectPage,
-    removePage,
-    rotatePage,
-    movePage,
-    addAnnotation,
-    updateAnnotation,
-    removeAnnotation,
-    replaceTextLine,
+    ...recorded,
+    undo,
+    redo,
+    newGroup,
+    closeHistoryGroup: history.closeGroup,
+    canUndo: history.canUndo,
+    canRedo: history.canRedo,
+    undoCount: history.undoCount,
     setZoom,
     setTool,
     exportDocument,

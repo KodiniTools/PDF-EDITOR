@@ -28,15 +28,6 @@ function onDragEnd(): void {
   dragFrom.value = null
   dragOver.value = null
 }
-
-function confirmRemove(pageId: string, index: number): void {
-  const page = store.pages[index]
-  if (page && page.annotations.length > 0) {
-    // Nur nachfragen, wenn Arbeit verloren ginge.
-    if (!window.confirm(`Seite ${index + 1} mit Annotationen löschen?`)) return
-  }
-  store.removePage(pageId)
-}
 </script>
 
 <template>
@@ -70,7 +61,7 @@ function confirmRemove(pageId: string, index: number): void {
           :selected="page.id === store.selectedPageId"
           @select="store.selectPage(page.id)"
           @rotate="store.rotatePage(page.id, $event)"
-          @remove="confirmRemove(page.id, index)"
+          @remove="store.removePage(page.id)"
           @move="store.movePage(index, $event)"
         />
       </li>

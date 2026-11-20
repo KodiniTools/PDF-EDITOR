@@ -29,6 +29,8 @@ const zoom = computed(() => store.zoom)
 
 const overlay = ref<HTMLElement | null>(null)
 const editingId = ref<string | null>(null)
+/** Undo-Gruppe der laufenden Textbearbeitung (Tippen = ein Schritt). */
+let editGroup: string | null = null
 const renderError = ref<string | null>(null)
 
 interface DragState {
@@ -39,6 +41,8 @@ interface DragState {
   startX: number
   startY: number
   annotationId: string | null
+  /** Undo-Gruppe: eine Zieh-Bewegung = ein Schritt. */
+  group: string
   orig: { x: number; y: number; width: number; height: number }
 }
 const drag = ref<DragState | null>(null)
@@ -130,8 +134,9 @@ async function placeSignature(at: { x: number; y: number }): Promise<void> {
   }
 }
 
-async function startTextEdit(id: string): Promise<void> {
+async function startTextEdit(id: string, group?: string): Promise<void> {
   editingId.value = id
+  editGroup = group ?? store.newGroup('edit')
   store.selectedAnnotationId = id
   await nextTick()
   const el = overlay.value?.querySelector<HTMLTextAreaElement>(`textarea[data-id="${id}"]`)
@@ -146,15 +151,20 @@ function onOverlayPointerDown(e: PointerEvent): void {
 
   switch (store.tool) {
     case 'text': {
-      const id = store.addAnnotation(props.page.id, {
-        kind: 'text',
-        text: '',
-        fontSize: effectiveFontSize(),
-        color: store.textColor,
-        x: p.x,
-        y: clamp(p.y - (effectiveFontSize() * TEXT_LINE_HEIGHT) / 2, 0, size.value.height),
-      })
-      if (id) void startTextEdit(id)
+      const group = store.newGroup('edit')
+      const id = store.addAnnotation(
+        props.page.id,
+        {
+          kind: 'text',
+          text: '',
+          fontSize: effectiveFontSize(),
+          color: store.textColor,
+          x: p.x,
+          y: clamp(p.y - (effectiveFontSize() * TEXT_LINE_HEIGHT) / 2, 0, size.value.height),
+        },
+        group,
+      )
+      if (id) void startTextEdit(id, group)
       e.preventDefault()
       return
     }
@@ -164,6 +174,7 @@ function onOverlayPointerDown(e: PointerEvent): void {
       drag.value = {
         mode: 'create',
         createKind: store.tool,
+        group: '',
         pointerId: e.pointerId,
         startX: p.x,
         startY: p.y,
@@ -196,6 +207,7 @@ function onAnnotationPointerDown(e: PointerEvent, a: Annotation, mode: 'move' | 
   overlay.value?.setPointerCapture(e.pointerId)
   drag.value = {
     mode,
+    group: store.newGroup('drag'),
     pointerId: e.pointerId,
     startX: p.x,
     startY: p.y,
@@ -225,10 +237,15 @@ function onPointerMove(e: PointerEvent): void {
   if (!a) return
 
   if (d.mode === 'move') {
-    store.updateAnnotation(props.page.id, a.id, {
-      x: clamp(d.orig.x + dx, 0, size.value.width - Math.min(d.orig.width, size.value.width)),
-      y: clamp(d.orig.y + dy, 0, size.value.height - Math.min(d.orig.height, size.value.height)),
-    })
+    store.updateAnnotation(
+      props.page.id,
+      a.id,
+      {
+        x: clamp(d.orig.x + dx, 0, size.value.width - Math.min(d.orig.width, size.value.width)),
+        y: clamp(d.orig.y + dy, 0, size.value.height - Math.min(d.orig.height, size.value.height)),
+      },
+      d.group,
+    )
     return
   }
   // resize
@@ -244,7 +261,7 @@ function onPointerMove(e: PointerEvent): void {
       width = height / ratio
     }
   }
-  store.updateAnnotation(props.page.id, a.id, { width, height })
+  store.updateAnnotation(props.page.id, a.id, { width, height }, d.group)
 }
 
 function onPointerUp(e: PointerEvent): void {
@@ -265,6 +282,8 @@ function onPointerUp(e: PointerEvent): void {
   }
   drag.value = null
   preview.value = null
+  // Klick ohne Bewegung erzeugt so keinen leeren Undo-Schritt.
+  store.closeHistoryGroup()
 }
 
 /**
@@ -273,12 +292,16 @@ function onPointerUp(e: PointerEvent): void {
  */
 function stopEditing(): void {
   const id = editingId.value
+  const group = editGroup ?? undefined
   editingId.value = null
+  editGroup = null
   if (!id) return
   const a = props.page.annotations.find((x) => x.id === id)
   if (a?.kind === 'text' && a.text.trim() === '') {
-    store.removeAnnotation(props.page.id, a.id)
+    store.removeAnnotation(props.page.id, a.id, group)
   }
+  // Leere Bearbeitung (nichts getippt) hinterlässt keinen Undo-Schritt.
+  store.closeHistoryGroup()
 }
 
 function finishTextEdit(a: Annotation): void {
@@ -287,7 +310,7 @@ function finishTextEdit(a: Annotation): void {
 
 function onTextInput(a: Annotation, e: Event): void {
   const value = (e.target as HTMLTextAreaElement).value
-  store.updateAnnotation(props.page.id, a.id, { text: value })
+  store.updateAnnotation(props.page.id, a.id, { text: value }, editGroup ?? undefined)
 }
 
 onBeforeUnmount(stopEditing)
@@ -333,8 +356,9 @@ function onLinePointerDown(e: PointerEvent, line: TextLine): void {
   e.stopPropagation()
   e.preventDefault()
   stopEditing()
-  const id = store.replaceTextLine(props.page.id, line)
-  if (id) void startTextEdit(id)
+  const group = store.newGroup('edit')
+  const id = store.replaceTextLine(props.page.id, line, group)
+  if (id) void startTextEdit(id, group)
 }
 
 function px(v: number): string {

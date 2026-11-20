@@ -38,7 +38,12 @@ const selectedFontSize = computed({
     const page = store.selectedPage
     const n = Number(value)
     if (!page || !selectedText.value || !Number.isFinite(n) || n < 4 || n > 200) return
-    store.updateAnnotation(page.id, selectedText.value.id, { fontSize: n })
+    store.updateAnnotation(
+      page.id,
+      selectedText.value.id,
+      { fontSize: n },
+      `style:${selectedText.value.id}`,
+    )
   },
 })
 
@@ -47,7 +52,12 @@ const selectedColor = computed({
   set: (value: string) => {
     const page = store.selectedPage
     if (page && selectedText.value) {
-      store.updateAnnotation(page.id, selectedText.value.id, { color: value })
+      store.updateAnnotation(
+        page.id,
+        selectedText.value.id,
+        { color: value },
+        `style:${selectedText.value.id}`,
+      )
     }
   },
 })
@@ -57,7 +67,12 @@ const selectedFont = computed({
   set: (value: FontFamily) => {
     const page = store.selectedPage
     if (page && selectedText.value) {
-      store.updateAnnotation(page.id, selectedText.value.id, { font: value })
+      store.updateAnnotation(
+        page.id,
+        selectedText.value.id,
+        { font: value },
+        `style:${selectedText.value.id}`,
+      )
     }
   },
 })
@@ -189,6 +204,31 @@ function chooseTool(id: Tool): void {
       >
         Signatur neu
       </button>
+
+      <div class="flex items-center gap-1 text-sm" role="group" aria-label="Verlauf">
+        <button
+          type="button"
+          class="tb-btn"
+          title="Rückgängig (Strg+Z)"
+          aria-label="Rückgängig"
+          :disabled="!store.canUndo || store.busy"
+          data-testid="undo"
+          @click="store.undo()"
+        >
+          ↶
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          title="Wiederholen (Strg+Y / Strg+Umschalt+Z)"
+          aria-label="Wiederholen"
+          :disabled="!store.canRedo || store.busy"
+          data-testid="redo"
+          @click="store.redo()"
+        >
+          ↷
+        </button>
+      </div>
 
       <div class="flex items-center gap-1 text-sm">
         <button
