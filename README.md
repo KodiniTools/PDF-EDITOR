@@ -7,11 +7,13 @@ Rein clientseitiger PDF-Editor: Dateien verlassen den Browser nicht.
 - PDFs öffnen (Button oder Drag & Drop), mehrere Dateien = **zusammenführen**
 - Seiten anzeigen (pdf.js), Miniaturen lazy gerendert
 - Seiten **drehen**, **löschen**, **umsortieren** (Drag & Drop oder ↑/↓)
+- **Vorhandenen Text bearbeiten**: Textzeile anklicken → wird abgedeckt und als editierbarer Text (gleiche Position/Größe, passende Standardschrift) neu gesetzt
+- **Abdecken** (Weiß/Schwarz/Farbe) – nur optisch, der Inhalt darunter bleibt in der PDF auslesbar
 - Annotationen: **Text** (mehrzeilig, Größe/Farbe), **Markierung** (Rechteck, Farbe), **Signatur** (zeichnen oder PNG/JPEG hochladen)
 - Annotationen verschieben, Markierung/Signatur skalieren, mit Entf löschen
 - **Export** als neue PDF (pdf-lib); Drehung und Annotationen werden eingebrannt
 
-Tastatur: `V` Auswählen, `T` Text, `H` Markieren, `S` Signatur, `↑/↓` Seite wechseln, `Entf` Annotation löschen, `Esc` Auswahl aufheben.
+Tastatur: `V` Auswählen, `E` Text bearbeiten, `T` Text, `A` Abdecken, `H` Markieren, `S` Signatur, `↑/↓` Seite wechseln, `Entf` Annotation löschen, `Esc` Auswahl aufheben.
 
 ## Stack
 
@@ -73,5 +75,6 @@ src/
 
 - Verschlüsselte oder passwortgeschützte PDFs werden abgelehnt.
 - Export-Text nutzt Helvetica (WinAnsi): Umlaute/€ ok, nicht darstellbare Zeichen (z. B. Emoji, Kyrillisch) werden zu `?`. Abhilfe: eigene TTF via `@pdf-lib/fontkit` einbetten.
-- Kein Undo/Redo, keine Bearbeitung bestehender PDF-Texte, keine Formularfelder.
+- „Text bearbeiten“ ersetzt Zeilen optisch (Abdeckung + neuer Text) mit Helvetica/Times/Courier; die Originalschrift und Fett/Kursiv werden nicht übernommen, der Originaltext bleibt unter der Abdeckung erhalten. Gescannte PDFs (ohne Textebene) und gedreht laufender Text sind nicht bearbeitbar.
+- Kein Undo/Redo, keine Formularfelder.
 - Formulare/Links der Quelle bleiben beim Kopieren der Seiten erhalten, Lesezeichen (Outline) nicht.

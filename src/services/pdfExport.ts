@@ -16,7 +16,13 @@ import {
   TEXT_BASELINE_RATIO,
   TEXT_LINE_HEIGHT,
 } from '@/lib/geometry'
-import type { Annotation, PageRef, Rotation } from '@/types/pdf'
+import type { Annotation, FontFamily, PageRef, Rotation } from '@/types/pdf'
+
+const STANDARD_FONTS: Record<FontFamily, StandardFonts> = {
+  sans: StandardFonts.Helvetica,
+  serif: StandardFonts.TimesRoman,
+  mono: StandardFonts.Courier,
+}
 
 /** Fehler mit nutzerfreundlicher Meldung; die technische Ursache steht in `cause`. */
 export class PdfEditorError extends Error {
@@ -76,7 +82,8 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; type: 'png' | 'jp
 
 interface DrawContext {
   doc: PDFDocument
-  font: PDFFont
+  /** Lädt eine Standardschrift bei Bedarf und bettet sie nur einmal ein. */
+  font: (family: FontFamily) => Promise<PDFFont>
   images: Map<string, PDFImage>
 }
 
@@ -105,19 +112,34 @@ async function drawAnnotation(
       })
       return
     }
+    case 'cover': {
+      const anchor = displayToPdf({ x: a.x, y: a.y + a.height }, box, rotation)
+      const c = hexToRgb(a.color)
+      page.drawRectangle({
+        x: anchor.x,
+        y: anchor.y,
+        width: a.width,
+        height: a.height,
+        rotate,
+        color: rgb(c.r, c.g, c.b),
+        opacity: 1,
+      })
+      return
+    }
     case 'text': {
       const c = hexToRgb(a.color)
       const lines = a.text.split(/\r?\n/)
       const lineHeight = a.fontSize * TEXT_LINE_HEIGHT
+      const font = await ctx.font(a.font ?? 'sans')
       lines.forEach((line, i) => {
         if (!line) return
         const baseline = a.y + i * lineHeight + a.fontSize * TEXT_BASELINE_RATIO
         const anchor = displayToPdf({ x: a.x, y: baseline }, box, rotation)
-        page.drawText(sanitizeForFont(line, ctx.font), {
+        page.drawText(sanitizeForFont(line, font), {
           x: anchor.x,
           y: anchor.y,
           size: a.fontSize,
-          font: ctx.font,
+          font,
           color: rgb(c.r, c.g, c.b),
           rotate,
         })
@@ -161,9 +183,17 @@ export async function exportPdf(
   }
 
   const out = await PDFDocument.create()
+  const fonts = new Map<FontFamily, Promise<PDFFont>>()
   const ctx: DrawContext = {
     doc: out,
-    font: await out.embedFont(StandardFonts.Helvetica),
+    font: (family) => {
+      let font = fonts.get(family)
+      if (!font) {
+        font = out.embedFont(STANDARD_FONTS[family])
+        fonts.set(family, font)
+      }
+      return font
+    },
     images: new Map(),
   }
 

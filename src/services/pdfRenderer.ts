@@ -7,6 +7,7 @@ import {
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 import { normalizeRotation } from '@/lib/geometry'
+import { buildTextLines, type Matrix, type RawTextItem, type TextLine } from '@/lib/textLines'
 import { PdfEditorError } from '@/services/pdfExport'
 import type { PdfBox, Rotation } from '@/types/pdf'
 
@@ -51,6 +52,9 @@ export async function openDocument(id: string, bytes: Uint8Array): Promise<PageI
 export async function closeDocument(id: string): Promise<void> {
   const doc = documents.get(id)
   documents.delete(id)
+  for (const key of textLineCache.keys()) {
+    if (key.startsWith(`${id}|`)) textLineCache.delete(key)
+  }
   await doc?.destroy()
 }
 
@@ -94,4 +98,47 @@ export async function renderPage(canvas: HTMLCanvasElement, opts: RenderOptions)
   } finally {
     opts.signal?.removeEventListener('abort', onAbort)
   }
+}
+
+/** Cache je Quelle/Seite/Drehung; Textinhalte ändern sich nie. */
+const textLineCache = new Map<string, Promise<TextLine[]>>()
+
+/**
+ * Liefert die erkannten Textzeilen einer Seite im angezeigten Raum
+ * (Punkte, Ursprung oben links, inkl. Drehung).
+ */
+export function getTextLines(
+  sourceId: string,
+  pageIndex: number,
+  rotation: Rotation,
+): Promise<TextLine[]> {
+  const cacheKey = `${sourceId}|${pageIndex}|${rotation}`
+  const cached = textLineCache.get(cacheKey)
+  if (cached) return cached
+
+  const promise = (async () => {
+    const doc = documents.get(sourceId)
+    if (!doc) throw new PdfEditorError('Dokument ist nicht geöffnet.')
+    const page = await doc.getPage(pageIndex + 1)
+    const viewport = page.getViewport({ scale: 1, rotation })
+    const content = await page.getTextContent()
+    const items: RawTextItem[] = []
+    for (const item of content.items) {
+      if (!('str' in item)) continue
+      const style = content.styles[item.fontName]
+      items.push({
+        str: item.str,
+        transform: item.transform as number[],
+        width: item.width,
+        ascent: style?.ascent || undefined,
+        descent: style?.descent || undefined,
+        fontFamily: style?.fontFamily,
+      })
+    }
+    return buildTextLines(items, viewport.transform as unknown as Matrix)
+  })()
+  // Fehlgeschlagene Abfragen nicht cachen, damit ein erneuter Versuch möglich ist.
+  promise.catch(() => textLineCache.delete(cacheKey))
+  textLineCache.set(cacheKey, promise)
+  return promise
 }
