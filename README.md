@@ -69,6 +69,9 @@ Zusätzlich zur öffentlichen App:
 - **Formulare ausfüllen** (Seitenleiste, Reiter „Formular“): erkennt Textfelder, Checkboxen, Radio-Gruppen und Auswahllisten samt Beschriftung auf der Seite. Werte lassen sich direkt eintragen oder mit „KI ausfüllen“ aus den **Stammdaten** vorschlagen (freier Text, nur im Browser gespeichert). Vorschläge werden einzeln oder gesammelt übernommen; auf der Seite erscheint eine Vorschau. Beim Export trägt MuPDF die Werte ein und übernimmt alle Felder fest in die Seiten (der Export enthält ohnehin kein ausfüllbares Formular mehr). Felder in geschwärzten Bereichen werden vorher entfernt. Nicht unterstützt: Listenfelder mit Mehrfachauswahl, Unterschriftsfelder, schreibgeschützte Felder.
 - **Umschreiben & Übersetzen**: unter einem ausgewählten Textfeld (eigener Text oder per „Text bearbeiten“ ersetzte Zeile) erscheint eine KI-Leiste: Korrigieren, Kürzer, Förmlicher, Einfacher, Übersetzen (Deutsch, Englisch, Französisch, Spanisch, Italienisch, Niederländisch, Portugiesisch). Das Ergebnis erscheint als Vorschau und wird per „Übernehmen“ eingesetzt (ein Undo-Schritt). Ersetzte PDF-Zeilen bleiben einzeilig; Zeichen, die die PDF-Standardschrift nicht kennt, werden vorab angezeigt.
 
+- **Neues Dokument**: Format A4, A5, A3, US Letter oder US Legal, Hoch- oder Querformat. Ohne Beschreibung entstehen leere Seiten (lokal, keine KI-Anfrage). Mit Beschreibung (z. B. „Rechnungsvorlage mit Positionstabelle“) liefert Claude Überschriften, Absätze, Listen, Tabellen und Ausfüllfelder, die der Browser mit pdf-lib im gewählten Format setzt; das PDF wird geöffnet bzw. an das offene Dokument angehängt.
+- **Modellauswahl** (Toolbar „KI-Modell“, gilt für alle KI-Funktionen, im Browser gespeichert): Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.2 (Allowlist auf dem Server: `ANTHROPIC_MODELS`). Jede Anfrage läuft und wird abgerechnet **nur** über das gewählte Modell: kein serverseitiger Fallback auf ein anderes Modell; lehnt das Modell ab, erscheint eine Fehlermeldung. Neben der Auswahl stehen das tatsächlich verwendete Modell (`message.model` der API), die Tokens und eine Kostenschätzung nach Listenpreis.
+
 MuPDF steht unter AGPL und landet **nur** im privaten Build: privater Code liegt in `src/private/` und wird nur hinter `__PRIVATE__` (Build-Konstante) dynamisch importiert. `deploy/deploy.sh` bricht ab, falls `dist/` doch MuPDF enthält.
 
 ```bash
@@ -82,14 +85,16 @@ cd server && pnpm test && pnpm type-check
 
 Kleiner Node-Server ohne Framework (`node:http`, TypeScript direkt per Node-Type-Stripping, Node `^22.18` / `>=24.12`), einzige Abhängigkeit `@anthropic-ai/sdk`. Lauscht nur auf `127.0.0.1`; nginx übernimmt TLS und Zugriffsschutz.
 
-- `GET /api/health` → `{ ok, model }`
+- `GET /api/health` → `{ ok, model, models }` (Standardmodell, wählbare Modelle)
+- Jeder `POST` akzeptiert optional `model` (muss in `models` stehen, sonst 400); jede Antwort enthält `meta: { model, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens }` mit dem tatsächlich verwendeten Modell
+- `POST /api/generate-document` mit `{ prompt, format: 'A4' | 'A5' | 'A3' | 'Letter' | 'Legal', orientation: 'portrait' | 'landscape', language? }` → `{ document: { title, blocks: [{ type: 'heading' | 'paragraph' | 'bullets' | 'numbered' | 'table' | 'field' | 'divider' | 'spacer' | 'pagebreak', … }] } }`
 - `POST /api/redaction-suggestions` mit `{ pages: [{ page, lines: [...] }] }` → `{ findings: [{ page, text, category, reason }] }`
 - `POST /api/form-suggestions` mit `{ fields: [{ id, type: 'text' | 'checkbox' | 'radio' | 'choice', label, context, page, options?, multiline?, maxLength? }], profile, pages? }` → `{ suggestions: [{ id, value, reason }] }`
 - `POST /api/ocr` mit `{ image: <base64>, mediaType: 'image/jpeg' | 'image/png', width, height }` → `{ lines: [{ text, box: [x0, y0, x1, y1] }] }` (Bildpixel)
 - `POST /api/rewrite` mit `{ text, mode: 'correct' | 'shorter' | 'formal' | 'simple' | 'translate', language?, singleLine? }` → `{ text }`
 - `POST /api/ask` mit `{ pages, messages: [{ role: 'user' | 'assistant', content }] }` (abwechselnd, letzte = Frage, höchstens 40) → `{ answer }`
 
-Der API-Key steht nur in `/etc/kodini/pdf-editor-privat-api.env` (Vorlage: `deploy/pdf-editor-privat-api.env.example`) und verlässt den Server nie. Modell: `claude-opus-5-5` (über `ANTHROPIC_MODEL` änderbar), strukturierte JSON-Ausgabe, automatischer Fallback bei Ablehnung. Das Backend verwirft Treffer, die nicht wörtlich im Seitentext stehen, und loggt keinen Dokumentinhalt. Größenlimits: 1 MB Body, 60 000 Zeichen pro Schwärzungsanfrage (das Frontend teilt längere Dokumente auf), 400 000 Zeichen Dokumenttext pro Frage (`MAX_ASK_CHARS`; das Frontend schickt höchstens 300 000 und kürzt den Verlauf, damit die Anfrage unter 1 MB bleibt), höchstens 2 KI-Anfragen gleichzeitig.
+Der API-Key steht nur in `/etc/kodini/pdf-editor-privat-api.env` (Vorlage: `deploy/pdf-editor-privat-api.env.example`) und verlässt den Server nie. Standardmodell: `claude-opus-5-5` (`ANTHROPIC_MODEL`), wählbar laut `ANTHROPIC_MODELS`; strukturierte JSON-Ausgabe, kein Fallback auf andere Modelle (Abrechnung nur über das gewählte Modell). Das Log enthält pro Anfrage Modell und Tokens (`model=… in=… out=…`), aber keinen Inhalt. Das Backend verwirft Treffer, die nicht wörtlich im Seitentext stehen, und loggt keinen Dokumentinhalt. Größenlimits: 1 MB Body, 60 000 Zeichen pro Schwärzungsanfrage (das Frontend teilt längere Dokumente auf), 400 000 Zeichen Dokumenttext pro Frage (`MAX_ASK_CHARS`; das Frontend schickt höchstens 300 000 und kürzt den Verlauf, damit die Anfrage unter 1 MB bleibt), höchstens 2 KI-Anfragen gleichzeitig.
 
 ### Einrichtung auf dem VPS (einmalig)
 

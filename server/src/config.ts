@@ -7,7 +7,10 @@ export interface Config {
   host: string
   port: number
   apiKey: string
+  /** Standardmodell, wenn der Browser keines wählt. */
   model: string
+  /** Im Browser wählbare Modelle (Allowlist, enthält immer `model`). */
+  models: string[]
   effort: Effort
   /** Maximale Größe des Request-Bodys in Bytes. */
   maxBodyBytes: number
@@ -38,6 +41,31 @@ function int(env: NodeJS.ProcessEnv, key: string, fallback: number, min: number,
   return n
 }
 
+/** Standardauswahl im Browser: aktuelle Opus-, Sonnet-, Haiku- und Fable-Modelle. */
+export const DEFAULT_MODELS = [
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-haiku-5-5',
+  'claude-fable-5-2',
+] as const
+
+const MODEL_ID = /^claude-[a-z0-9][a-z0-9.-]{0,62}$/
+
+function parseModels(raw: string | undefined, model: string): string[] {
+  const list =
+    raw === undefined || raw.trim() === ''
+      ? [...DEFAULT_MODELS]
+      : raw
+          .split(',')
+          .map((m) => m.trim())
+          .filter(Boolean)
+  for (const m of list) {
+    if (!MODEL_ID.test(m)) throw new ConfigError(`ANTHROPIC_MODELS: ungültige Modell-ID "${m}".`)
+  }
+  // Standardmodell steht immer zur Wahl und vorne.
+  return [...new Set([model, ...list])]
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const apiKey = env.ANTHROPIC_API_KEY?.trim() ?? ''
   if (!apiKey) {
@@ -50,11 +78,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new ConfigError(`ANTHROPIC_EFFORT muss einer von ${EFFORTS.join(', ')} sein.`)
   }
   const host = env.HOST?.trim() || '127.0.0.1'
+  const model = env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5-5'
+  if (!MODEL_ID.test(model))
+    throw new ConfigError(`ANTHROPIC_MODEL: ungültige Modell-ID "${model}".`)
   return {
     host,
     port: int(env, 'PORT', DEFAULT_PORT, 1024, 65535),
     apiKey,
-    model: env.ANTHROPIC_MODEL?.trim() || 'claude-opus-5-5',
+    model,
+    models: parseModels(env.ANTHROPIC_MODELS, model),
     effort,
     maxBodyBytes: int(env, 'MAX_BODY_BYTES', 1_000_000, 10_000, 10_000_000),
     maxChars: int(env, 'MAX_CHARS', 60_000, 1_000, 400_000),

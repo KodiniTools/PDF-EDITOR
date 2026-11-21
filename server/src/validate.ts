@@ -303,3 +303,62 @@ export function parseFormRequest(body: unknown, maxChars: number): FormRequest {
   }
   return { fields: parsed, profile: text, pages: pageTexts }
 }
+
+/**
+ * Optionales Feld `model` jedes KI-Requests: muss in der Allowlist stehen.
+ * Fehlt es, gilt das Standardmodell des Servers.
+ */
+export function parseModel(body: unknown, allowed: readonly string[], fallback: string): string {
+  const model = (body as { model?: unknown } | null)?.model
+  if (model === undefined || model === null) return fallback
+  if (typeof model !== 'string' || !allowed.includes(model)) {
+    throw new ValidationError(`"model" muss einer von ${allowed.join(', ')} sein.`)
+  }
+  return model
+}
+
+export const PAGE_FORMATS = ['A4', 'A5', 'A3', 'Letter', 'Legal'] as const
+export type PageFormat = (typeof PAGE_FORMATS)[number]
+export const ORIENTATIONS = ['portrait', 'landscape'] as const
+export type Orientation = (typeof ORIENTATIONS)[number]
+
+export interface GenerateRequest {
+  prompt: string
+  format: PageFormat
+  orientation: Orientation
+  language: RewriteLanguage
+}
+
+export const MAX_GENERATE_PROMPT = 4_000
+
+/** Neues Dokument erzeugen: Beschreibung, Seitenformat, Ausrichtung, Sprache. */
+export function parseGenerateRequest(body: unknown): GenerateRequest {
+  if (typeof body !== 'object' || body === null) {
+    throw new ValidationError(
+      'Erwartet: { "prompt": "…", "format": "A4", "orientation": "portrait", "language": "de" }',
+    )
+  }
+  const { prompt, format, orientation, language } = body as Record<string, unknown>
+  if (typeof prompt !== 'string' || !prompt.trim()) {
+    throw new ValidationError('Bitte beschreiben, was das Dokument enthalten soll.')
+  }
+  if (prompt.length > MAX_GENERATE_PROMPT) {
+    throw new ValidationError(`Beschreibung zu lang (max. ${MAX_GENERATE_PROMPT} Zeichen).`, 413)
+  }
+  if (!PAGE_FORMATS.includes(format as PageFormat)) {
+    throw new ValidationError(`"format" muss einer von ${PAGE_FORMATS.join(', ')} sein.`)
+  }
+  if (!ORIENTATIONS.includes(orientation as Orientation)) {
+    throw new ValidationError(`"orientation" muss einer von ${ORIENTATIONS.join(', ')} sein.`)
+  }
+  const lang = language ?? 'de'
+  if (!REWRITE_LANGUAGES.includes(lang as RewriteLanguage)) {
+    throw new ValidationError(`"language" muss einer von ${REWRITE_LANGUAGES.join(', ')} sein.`)
+  }
+  return {
+    prompt: prompt.trim(),
+    format: format as PageFormat,
+    orientation: orientation as Orientation,
+    language: lang as RewriteLanguage,
+  }
+}

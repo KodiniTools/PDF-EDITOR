@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 
 import { useDocumentStore } from '@/stores/document'
 import type { FontFamily, Tool } from '@/types/pdf'
@@ -12,6 +12,10 @@ const emit = defineEmits<{
 
 const store = useDocumentStore()
 const isPrivate = __PRIVATE__
+/** „Neues Dokument“ + KI-Modellauswahl – nur im privaten Build. */
+const PrivateToolbar = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/PrivateToolbar.vue'))
+  : null
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const tools: { id: Tool; label: string; hint: string }[] = [
@@ -162,6 +166,7 @@ function chooseTool(id: Tool): void {
       data-testid="file-input"
       @change="onFileChange"
     />
+    <component :is="PrivateToolbar" v-if="PrivateToolbar" />
 
     <div v-if="store.hasDocument" class="flex flex-wrap items-center gap-2">
       <div

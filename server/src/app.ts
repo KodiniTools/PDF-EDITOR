@@ -8,15 +8,18 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import Anthropic from '@anthropic-ai/sdk'
 
 import { askDocument } from './ask.ts'
-import { SuggestError, type StreamFn } from './claude.ts'
+import { SuggestError, trackUsage, type CallOptions, type StreamFn } from './claude.ts'
 import type { Config } from './config.ts'
 import { suggestFormValues } from './forms.ts'
+import { generateDocument } from './generate.ts'
 import { recognizePage } from './ocr.ts'
 import { rewriteText } from './rewrite.ts'
 import { suggestRedactions } from './suggest.ts'
 import {
   parseAskRequest,
   parseFormRequest,
+  parseGenerateRequest,
+  parseModel,
   parseOcrRequest,
   parseRewriteRequest,
   parseSuggestRequest,
@@ -27,7 +30,7 @@ import {
 export interface AppDeps {
   config: Pick<
     Config,
-    'model' | 'effort' | 'maxBodyBytes' | 'maxChars' | 'maxAskChars' | 'timeoutMs'
+    'model' | 'models' | 'effort' | 'maxBodyBytes' | 'maxChars' | 'maxAskChars' | 'timeoutMs'
   >
   stream: StreamFn
   log?: (line: string) => void
@@ -121,13 +124,18 @@ export function createHandler(deps: AppDeps) {
   /**
    * Führt einen KI-Endpunkt aus: Body lesen, Abbruch (Client weg / Zeitlimit),
    * Begrenzung gleichzeitiger Aufrufe, Fehler → verständliche Meldung.
+   * Das Modell kommt aus dem Feld `model` (Allowlist) oder ist das Standardmodell.
+   * Die Antwort enthält `meta` mit dem tatsächlich verwendeten Modell und den Tokens.
    * `run` liefert die Antwort und eine Log-Zeile – bewusst ohne Dokumentinhalt.
    */
   async function aiEndpoint(
     name: string,
     req: IncomingMessage,
     res: ServerResponse,
-    run: (body: unknown, signal: AbortSignal) => Promise<{ body: unknown; log: string }>,
+    run: (
+      body: unknown,
+      ctx: { stream: StreamFn; opts: CallOptions },
+    ) => Promise<{ body: Record<string, unknown>; log: string }>,
   ): Promise<void> {
     if (running >= maxConcurrent) {
       send(res, 429, { error: 'Es läuft bereits eine KI-Anfrage. Bitte warten.' })
@@ -144,9 +152,17 @@ export function createHandler(deps: AppDeps) {
     const signal = AbortSignal.any([client.signal, timeout])
     try {
       const body = await readJson(req, deps.config.maxBodyBytes)
-      const result = await run(body, signal)
-      send(res, 200, result.body)
-      log(`${name} ok ${result.log} ms=${Date.now() - started}`)
+      const model = parseModel(body, deps.config.models, deps.config.model)
+      const tracked = trackUsage(deps.stream)
+      const result = await run(body, {
+        stream: tracked.stream,
+        opts: { model, effort: deps.config.effort, signal },
+      })
+      const meta = tracked.meta()
+      send(res, 200, { ...result.body, meta })
+      log(
+        `${name} ok ${result.log} model=${meta?.model ?? model} in=${meta?.inputTokens ?? 0} out=${meta?.outputTokens ?? 0} ms=${Date.now() - started}`,
+      )
     } catch (err) {
       if (client.signal.aborted) {
         log(`${name} abgebrochen (Client) ms=${Date.now() - started}`)
@@ -162,53 +178,56 @@ export function createHandler(deps: AppDeps) {
     }
   }
 
-  const callOpts = (signal: AbortSignal) => ({
-    model: deps.config.model,
-    effort: deps.config.effort,
-    signal,
-  })
-
   const routes: Record<string, (req: IncomingMessage, res: ServerResponse) => Promise<void>> = {
     '/api/redaction-suggestions': (req, res) =>
-      aiEndpoint('suggest', req, res, async (body, signal) => {
+      aiEndpoint('suggest', req, res, async (body, { stream, opts }) => {
         const input = parseSuggestRequest(body, deps.config.maxChars)
-        const findings = await suggestRedactions(deps.stream, input, callOpts(signal))
+        const findings = await suggestRedactions(stream, input, opts)
         return {
           body: { findings },
           log: `pages=${input.pages.length} chars=${countChars(input.pages)} findings=${findings.length}`,
         }
       }),
     '/api/ask': (req, res) =>
-      aiEndpoint('ask', req, res, async (body, signal) => {
+      aiEndpoint('ask', req, res, async (body, { stream, opts }) => {
         const input = parseAskRequest(body, deps.config.maxAskChars)
-        const answer = await askDocument(deps.stream, input, callOpts(signal))
+        const answer = await askDocument(stream, input, opts)
         return {
           body: { answer },
           log: `pages=${input.pages.length} chars=${countChars(input.pages)} turns=${input.messages.length}`,
         }
       }),
     '/api/form-suggestions': (req, res) =>
-      aiEndpoint('form', req, res, async (body, signal) => {
+      aiEndpoint('form', req, res, async (body, { stream, opts }) => {
         const input = parseFormRequest(body, deps.config.maxChars)
-        const suggestions = await suggestFormValues(deps.stream, input, callOpts(signal))
+        const suggestions = await suggestFormValues(stream, input, opts)
         return {
           body: { suggestions },
           log: `fields=${input.fields.length} pages=${input.pages.length} suggestions=${suggestions.length}`,
         }
       }),
     '/api/ocr': (req, res) =>
-      aiEndpoint('ocr', req, res, async (body, signal) => {
+      aiEndpoint('ocr', req, res, async (body, { stream, opts }) => {
         const input = parseOcrRequest(body)
-        const lines = await recognizePage(deps.stream, input, callOpts(signal))
+        const lines = await recognizePage(stream, input, opts)
         return {
           body: { lines },
           log: `size=${input.width}x${input.height} bytes=${input.image.length} lines=${lines.length}`,
         }
       }),
+    '/api/generate-document': (req, res) =>
+      aiEndpoint('generate', req, res, async (body, { stream, opts }) => {
+        const input = parseGenerateRequest(body)
+        const document = await generateDocument(stream, input, opts)
+        return {
+          body: { document },
+          log: `format=${input.format}:${input.orientation} prompt=${input.prompt.length} blocks=${document.blocks.length}`,
+        }
+      }),
     '/api/rewrite': (req, res) =>
-      aiEndpoint('rewrite', req, res, async (body, signal) => {
+      aiEndpoint('rewrite', req, res, async (body, { stream, opts }) => {
         const input = parseRewriteRequest(body)
-        const text = await rewriteText(deps.stream, input, callOpts(signal))
+        const text = await rewriteText(stream, input, opts)
         return {
           body: { text },
           log: `mode=${input.mode}${input.language ? `:${input.language}` : ''} chars=${input.text.length}`,
@@ -224,7 +243,7 @@ export function createHandler(deps: AppDeps) {
           send(res, 405, { error: 'Methode nicht erlaubt.' })
           return
         }
-        send(res, 200, { ok: true, model: deps.config.model })
+        send(res, 200, { ok: true, model: deps.config.model, models: deps.config.models })
         return
       }
       const route = Object.hasOwn(routes, url.pathname) ? routes[url.pathname] : undefined
