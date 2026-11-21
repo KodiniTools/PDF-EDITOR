@@ -2,10 +2,10 @@
 import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import AppToolbar from '@/components/AppToolbar.vue'
+import ExportDialog from '@/components/ExportDialog.vue'
 import PageEditor from '@/components/PageEditor.vue'
 import PageSidebar from '@/components/PageSidebar.vue'
 import SignatureDialog from '@/components/SignatureDialog.vue'
-import { downloadBytes } from '@/lib/file'
 import { useDocumentStore } from '@/stores/document'
 import type { Tool } from '@/types/pdf'
 
@@ -17,19 +17,11 @@ const isPrivate = __PRIVATE__
 
 const store = useDocumentStore()
 const showSignature = ref(false)
+const showExport = ref(false)
 const dropActive = ref(false)
 
 async function openFiles(files: File[]): Promise<void> {
   await store.addFiles(files)
-}
-
-async function exportPdf(): Promise<void> {
-  try {
-    const bytes = await store.exportDocument()
-    downloadBytes(bytes, store.suggestedFileName)
-  } catch {
-    // Meldung steht bereits in store.error
-  }
 }
 
 function onSignatureSaved(dataUrl: string): void {
@@ -79,7 +71,7 @@ function onKeyDown(e: KeyboardEvent): void {
   ) {
     return
   }
-  if (showSignature.value || !store.hasDocument) return
+  if (showSignature.value || showExport.value || !store.hasDocument) return
 
   // Undo/Redo: Strg/Cmd+Z, Strg/Cmd+Umschalt+Z, Strg+Y
   if ((e.ctrlKey || e.metaKey) && !e.altKey) {
@@ -143,7 +135,7 @@ onBeforeUnmount(() => {
   >
     <AppToolbar
       @open-files="openFiles"
-      @export="exportPdf"
+      @export="showExport = true"
       @edit-signature="showSignature = true"
     />
 
@@ -204,5 +196,6 @@ onBeforeUnmount(() => {
     </div>
 
     <SignatureDialog v-if="showSignature" @save="onSignatureSaved" @cancel="onSignatureCancel" />
+    <ExportDialog v-if="showExport && store.hasDocument" @close="showExport = false" />
   </div>
 </template>

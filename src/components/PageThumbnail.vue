@@ -13,6 +13,8 @@ const props = defineProps<{
   index: number
   total: number
   selected: boolean
+  /** Für den Export markiert (Häkchen). */
+  marked: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +22,7 @@ const emit = defineEmits<{
   rotate: [direction: 'cw' | 'ccw']
   remove: []
   move: [to: number]
+  toggleMark: []
 }>()
 
 const root = ref<HTMLElement | null>(null)
@@ -35,7 +38,13 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
   <div
     ref="root"
     class="group rounded-lg border-2 p-2 transition-colors"
-    :class="selected ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:bg-gray-100'"
+    :class="
+      selected
+        ? 'border-blue-500 bg-blue-50'
+        : marked
+          ? 'border-blue-200 bg-blue-50/50'
+          : 'border-transparent hover:bg-gray-100'
+    "
   >
     <button
       type="button"
@@ -61,7 +70,20 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
       </span>
     </button>
     <div class="mt-1 flex items-center justify-between text-xs text-gray-600">
-      <span class="font-medium">{{ index + 1 }}</span>
+      <label
+        class="flex cursor-pointer items-center gap-1 font-medium"
+        :title="marked ? 'Markierung aufheben' : 'Seite markieren (z. B. für den Export)'"
+      >
+        <input
+          type="checkbox"
+          class="h-3.5 w-3.5"
+          :checked="marked"
+          :aria-label="`Seite ${index + 1} markieren`"
+          data-testid="page-mark"
+          @change="emit('toggleMark')"
+        />
+        {{ index + 1 }}
+      </label>
       <div class="flex gap-0.5">
         <button
           type="button"

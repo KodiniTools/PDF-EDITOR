@@ -49,7 +49,11 @@ const deleteLabel = computed(() => {
 })
 
 const tools: { id: Tool; label: string; hint: string }[] = [
-  { id: 'select', label: 'Auswählen', hint: 'Annotationen verschieben (V)' },
+  {
+    id: 'select',
+    label: 'Verschieben',
+    hint: 'Eingefügte Elemente (Text, Bild, Signatur, Markierung, Abdeckung) anklicken, um sie zu verschieben, in der Größe zu ändern oder zu löschen (V)',
+  },
   {
     id: 'edit-text',
     label: 'Text bearbeiten',
