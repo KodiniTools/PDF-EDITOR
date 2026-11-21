@@ -8,7 +8,8 @@
  *     Danach ggf. Formularfelder ausfüllen und einbetten (MuPDF, forms/fill.ts) –
  *     nach dem Schwärzen, damit Felder in geschwärzten Bereichen schon entfernt sind.
  *  2. pdf-lib: das bereinigte PDF als einzige Quelle nehmen und alle Annotationen
- *     einzeichnen – die Schwärzungsflächen selbst als schwarze Rechtecke.
+ *     einzeichnen – die Schwärzungsflächen selbst als deckende Rechtecke in ihrer Farbe
+ *     (Standard schwarz; weiß bei ersetzten Textzeilen aus „Text bearbeiten“).
  */
 import { normalizeRotation } from '@/lib/geometry'
 import { exportPdf } from '@/services/pdfExport'
@@ -71,7 +72,9 @@ export async function exportWithRedactions(
     sourceIndex: index,
     baseRotation: normalizeRotation(p.baseRotation + p.rotation),
     rotation: 0,
-    annotations: p.annotations.map((a) => (isRedaction(a) ? { ...a, color: '#000000' } : a)),
+    annotations: p.annotations.map((a) =>
+      isRedaction(a) ? { ...a, color: a.color || '#000000' } : a,
+    ),
   }))
   const bytes = await exportPdf(new Map([[REDACTED_SOURCE, redacted]]), second)
   return { bytes, report }

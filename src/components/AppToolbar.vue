@@ -93,6 +93,34 @@ const fontOptions: { value: FontFamily; label: string }[] = [
   { value: 'mono', label: 'Courier' },
 ]
 
+/** Ausgewählte echte Schwärzung (Farbe nachträglich änderbar). */
+const selectedRedaction = computed(() => {
+  const a = store.selectedAnnotation
+  return a?.kind === 'cover' && a.redact === true ? a : null
+})
+
+const redactColor = computed({
+  get: () => selectedRedaction.value?.color ?? store.redactColor,
+  set: (value: string) => {
+    store.redactColor = value
+    const page = store.selectedPage
+    if (page && selectedRedaction.value) {
+      store.updateAnnotation(
+        page.id,
+        selectedRedaction.value.id,
+        { color: value },
+        `style:${selectedRedaction.value.id}`,
+      )
+    }
+  },
+})
+
+const redactPresets = [
+  { color: '#000000', label: 'Schwarz' },
+  { color: '#ffffff', label: 'Weiß' },
+  { color: '#808080', label: 'Grau' },
+]
+
 const coverPresets = [
   { color: '#ffffff', label: 'Weiß' },
   { color: '#000000', label: 'Schwarz' },
@@ -208,13 +236,25 @@ function chooseTool(id: Tool): void {
         <input v-model="store.coverColor" type="color" class="h-7 w-8" title="Abdeckfarbe" />
         <span class="text-xs text-amber-700">nur optisch</span>
       </div>
-      <span
-        v-if="store.tool === 'redact'"
-        class="text-xs text-red-700"
+      <div
+        v-if="isPrivate && (store.tool === 'redact' || selectedRedaction)"
+        class="flex items-center gap-1 text-sm"
         title="Text, Grafik, Bildpixel, Kommentare und Formularfelder unter der Fläche werden beim Export entfernt; Metadaten ebenfalls."
+        data-testid="redact-colors"
       >
-        echt – wirkt beim Export
-      </span>
+        <button
+          v-for="p in redactPresets"
+          :key="p.color"
+          type="button"
+          class="tb-btn"
+          :class="{ 'ring-2 ring-blue-500': redactColor === p.color }"
+          @click="redactColor = p.color"
+        >
+          {{ p.label }}
+        </button>
+        <input v-model="redactColor" type="color" class="h-7 w-8" title="Farbe der Schwärzung" />
+        <span class="text-xs text-red-700">echt – wirkt beim Export</span>
+      </div>
       <button
         v-if="store.tool === 'signature'"
         type="button"

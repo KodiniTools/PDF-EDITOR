@@ -148,4 +148,46 @@ describe('exportWithRedactions', () => {
     expect(report).toBeNull()
     expect(texts(bytes)[0]!.text).toContain('Erika')
   })
+
+  it('entfernt ersetzte Zeilen echt und zeichnet Abdeckung in ihrer Farbe', async () => {
+    // „Text bearbeiten“ im privaten Build: weiße echte Schwärzung + Ersatztext
+    const pages = [
+      page('a', 0, {
+        annotations: [
+          {
+            id: 'c',
+            kind: 'cover',
+            redact: true,
+            color: '#ffffff',
+            x: 95,
+            y: 80,
+            width: 200,
+            height: 26,
+          },
+          {
+            id: 't',
+            kind: 'text',
+            text: 'ERSETZT',
+            fontSize: 20,
+            color: '#000000',
+            x: 100,
+            y: 82,
+            replacesKey: 'k',
+            coverId: 'c',
+          },
+        ],
+      }),
+    ]
+    const { bytes } = await exportWithRedactions(new Map([['s1', await source()]]), pages)
+    const text = texts(bytes)[0]!.text
+    expect(text).not.toContain('GEHEIM')
+    expect(text).toContain('ERSETZT')
+    expect(text).toContain('OFFEN')
+    // Fläche ist weiß, nicht schwarz: Pixel rechts neben dem Ersatztext hell
+    const doc = new mupdf.PDFDocument(bytes)
+    const pix = doc.loadPage(0).toPixmap(mupdf.Matrix.identity, mupdf.ColorSpace.DeviceGray, false)
+    const w = pix.getWidth()
+    expect(pix.getPixels()[95 * w + 260]).toBeGreaterThan(240)
+    doc.destroy()
+  })
 })

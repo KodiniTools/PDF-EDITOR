@@ -59,6 +59,8 @@ export const useDocumentStore = defineStore('document', () => {
   const highlightColor = ref('#facc15')
   const fontSize = ref(14)
   const coverColor = ref('#ffffff')
+  /** Farbe neuer echter Schwärzungen (nur privater Build). */
+  const redactColor = ref('#000000')
 
   const hasDocument = computed(() => pages.value.length > 0)
   const selectedPage = computed(
@@ -275,6 +277,8 @@ export const useDocumentStore = defineStore('document', () => {
     const coverId = addAnnotation(pageId, {
       kind: 'cover',
       color: '#ffffff',
+      // Privater Build: alte Zeile beim Export echt entfernen (MuPDF), nicht nur abdecken.
+      ...(__PRIVATE__ ? { redact: true } : {}),
       x: line.x - pad,
       y: line.top - pad,
       width: line.width + 2 * pad,
@@ -376,6 +380,7 @@ export const useDocumentStore = defineStore('document', () => {
     highlightColor,
     fontSize,
     coverColor,
+    redactColor,
     hasDocument,
     selectedAnnotation,
     selectedPage,
