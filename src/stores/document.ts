@@ -334,6 +334,11 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  /** Originalbytes einer geladenen Quelle (z. B. für die Bildsuche im privaten Build). */
+  function sourceBytesFor(sourceId: string): Uint8Array | undefined {
+    return sourceBytes.get(sourceId)
+  }
+
   /** Fügt ein Bild zentriert auf der ausgewählten Seite ein und wählt es aus. */
   function addImage(image: LoadedImage): string | null {
     const page = selectedPage.value
@@ -416,6 +421,7 @@ export const useDocumentStore = defineStore('document', () => {
     ...recorded,
     addImage,
     removeSelectedAnnotation,
+    sourceBytesFor,
     undo,
     redo,
     newGroup,

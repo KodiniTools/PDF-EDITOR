@@ -4,13 +4,15 @@ import { ref } from 'vue'
 
 import AskPanel from './AskPanel.vue'
 import FormPanel from './FormPanel.vue'
+import ImagePanel from './ImagePanel.vue'
 import RedactionPanel from './RedactionPanel.vue'
 
-type Tab = 'redact' | 'ask' | 'form'
+type Tab = 'redact' | 'ask' | 'form' | 'images'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'redact', label: 'Schwärzen' },
   { id: 'ask', label: 'Fragen' },
   { id: 'form', label: 'Formular' },
+  { id: 'images', label: 'Bilder' },
 ]
 const tab = ref<Tab>('redact')
 </script>
@@ -29,7 +31,7 @@ const tab = ref<Tab>('redact')
         role="tab"
         :aria-selected="tab === t.id"
         :aria-controls="`private-panel-${t.id}`"
-        class="flex-1 px-3 py-2 font-medium"
+        class="flex-1 px-2 py-2 font-medium"
         :class="
           tab === t.id
             ? 'border-b-2 border-blue-600 text-blue-700'
@@ -68,6 +70,15 @@ const tab = ref<Tab>('redact')
       class="flex min-h-0 flex-1 flex-col"
     >
       <FormPanel />
+    </div>
+    <div
+      v-show="tab === 'images'"
+      id="private-panel-images"
+      role="tabpanel"
+      aria-labelledby="private-tab-images"
+      class="flex min-h-0 flex-1 flex-col"
+    >
+      <ImagePanel :active="tab === 'images'" />
     </div>
   </aside>
 </template>

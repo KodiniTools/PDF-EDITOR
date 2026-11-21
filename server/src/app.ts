@@ -12,6 +12,7 @@ import { SuggestError, trackUsage, type CallOptions, type StreamFn } from './cla
 import type { Config } from './config.ts'
 import { suggestFormValues } from './forms.ts'
 import { generateDocument } from './generate.ts'
+import { detectImages } from './images.ts'
 import { recognizePage } from './ocr.ts'
 import { rewriteText } from './rewrite.ts'
 import { suggestRedactions } from './suggest.ts'
@@ -222,6 +223,15 @@ export function createHandler(deps: AppDeps) {
         return {
           body: { document },
           log: `format=${input.format}:${input.orientation} prompt=${input.prompt.length} blocks=${document.blocks.length}`,
+        }
+      }),
+    '/api/detect-images': (req, res) =>
+      aiEndpoint('images', req, res, async (body, { stream, opts }) => {
+        const input = parseOcrRequest(body)
+        const regions = await detectImages(stream, input, opts)
+        return {
+          body: { regions },
+          log: `size=${input.width}x${input.height} bytes=${input.image.length} regions=${regions.length}`,
         }
       }),
     '/api/rewrite': (req, res) =>

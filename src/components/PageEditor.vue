@@ -35,6 +35,10 @@ const SuggestionOverlay = __PRIVATE__
 const FormOverlay = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/FormOverlay.vue'))
   : null
+/** Gefundene Bilder (Werkzeug „Bilder“) – nur im privaten Build. */
+const ImageOverlay = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/ImageOverlay.vue'))
+  : null
 /** KI-Umschreiben unter ausgewählten Textfeldern – nur im privaten Build. */
 const TextAssist = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/TextAssist.vue'))
@@ -381,6 +385,11 @@ watch(
 )
 
 /** Abdeckungen ersetzter Zeilen („Text bearbeiten“): deckend, ohne Schwärzungsrahmen. */
+/** Deckend dargestellte Schwärzung: ersetzte Textzeile oder gelöschtes Bild. */
+function solidCover(a: Annotation): boolean {
+  return textCovers.value.has(a.id) || (a.kind === 'cover' && a.solid === true)
+}
+
 const textCovers = computed(
   () =>
     new Set(
@@ -465,23 +474,25 @@ function px(v: number): string {
           :class="{
             'outline-2 outline-blue-500 outline-dashed': store.selectedAnnotationId === a.id,
             'outline-1 outline-red-600':
-              a.redact && !textCovers.has(a.id) && store.selectedAnnotationId !== a.id,
+              a.redact && !solidCover(a) && store.selectedAnnotationId !== a.id,
           }"
           :style="{
             left: px(a.x),
             top: px(a.y),
             width: px(a.width),
             height: px(a.height),
-            backgroundColor: a.redact && !textCovers.has(a.id) ? redactPreview(a.color) : a.color,
+            backgroundColor: a.redact && !solidCover(a) ? redactPreview(a.color) : a.color,
           }"
           :title="
             a.redact
               ? textCovers.has(a.id)
                 ? 'Ersetzte Zeile: wird beim Export echt entfernt'
-                : 'Echte Schwärzung: Inhalt wird beim Export entfernt'
+                : a.solid
+                  ? 'Gelöschter Bereich: wird beim Export echt entfernt'
+                  : 'Echte Schwärzung: Inhalt wird beim Export entfernt'
               : undefined
           "
-          :data-testid="a.redact && !textCovers.has(a.id) ? 'redaction' : undefined"
+          :data-testid="a.redact && !solidCover(a) ? 'redaction' : undefined"
           @pointerdown="onAnnotationPointerDown($event, a, 'move')"
         />
 
@@ -585,6 +596,7 @@ function px(v: number): string {
 
       <component :is="FormOverlay" v-if="FormOverlay" :page="page" :zoom="zoom" />
       <component :is="SuggestionOverlay" v-if="SuggestionOverlay" :page="page" :zoom="zoom" />
+      <component :is="ImageOverlay" v-if="ImageOverlay" :page="page" :zoom="zoom" />
       <component
         :is="TextAssist"
         v-if="TextAssist && selectedText"
