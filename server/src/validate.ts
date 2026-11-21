@@ -167,3 +167,43 @@ export function parseRewriteRequest(body: unknown): RewriteRequest {
   }
   return req
 }
+
+export const OCR_MEDIA_TYPES = ['image/jpeg', 'image/png'] as const
+export type OcrMediaType = (typeof OCR_MEDIA_TYPES)[number]
+export const MAX_OCR_SIDE = 4_000
+
+export interface OcrRequest {
+  /** Base64 ohne data:-Präfix. */
+  image: string
+  mediaType: OcrMediaType
+  width: number
+  height: number
+}
+
+/** POST /api/ocr: Bild einer gescannten Seite. */
+export function parseOcrRequest(body: unknown): OcrRequest {
+  if (typeof body !== 'object' || body === null) {
+    throw new ValidationError('Erwartet: { "image": "<base64>", "mediaType", "width", "height" }')
+  }
+  const { image, mediaType, width, height } = body as Record<string, unknown>
+  if (typeof image !== 'string' || image.length < 100 || !/^[A-Za-z0-9+/]+={0,2}$/.test(image)) {
+    throw new ValidationError('"image" muss ein Base64-kodiertes Bild sein.')
+  }
+  if (!OCR_MEDIA_TYPES.includes(mediaType as OcrMediaType)) {
+    throw new ValidationError(`"mediaType" muss einer von ${OCR_MEDIA_TYPES.join(', ')} sein.`)
+  }
+  for (const [name, v] of [
+    ['width', width],
+    ['height', height],
+  ] as const) {
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > MAX_OCR_SIDE) {
+      throw new ValidationError(`"${name}" muss eine ganze Zahl von 1 bis ${MAX_OCR_SIDE} sein.`)
+    }
+  }
+  return {
+    image,
+    mediaType: mediaType as OcrMediaType,
+    width: width as number,
+    height: height as number,
+  }
+}

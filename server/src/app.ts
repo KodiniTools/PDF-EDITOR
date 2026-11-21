@@ -10,10 +10,12 @@ import Anthropic from '@anthropic-ai/sdk'
 import { askDocument } from './ask.ts'
 import { SuggestError, type StreamFn } from './claude.ts'
 import type { Config } from './config.ts'
+import { recognizePage } from './ocr.ts'
 import { rewriteText } from './rewrite.ts'
 import { suggestRedactions } from './suggest.ts'
 import {
   parseAskRequest,
+  parseOcrRequest,
   parseRewriteRequest,
   parseSuggestRequest,
   ValidationError,
@@ -181,6 +183,15 @@ export function createHandler(deps: AppDeps) {
         return {
           body: { answer },
           log: `pages=${input.pages.length} chars=${countChars(input.pages)} turns=${input.messages.length}`,
+        }
+      }),
+    '/api/ocr': (req, res) =>
+      aiEndpoint('ocr', req, res, async (body, signal) => {
+        const input = parseOcrRequest(body)
+        const lines = await recognizePage(deps.stream, input, callOpts(signal))
+        return {
+          body: { lines },
+          log: `size=${input.width}x${input.height} bytes=${input.image.length} lines=${lines.length}`,
         }
       }),
     '/api/rewrite': (req, res) =>

@@ -57,8 +57,8 @@ function apply(): void {
   >
     <div class="border-b border-gray-200 p-3">
       <p class="text-xs text-gray-500">
-        Der Text der Seiten wird zur Analyse an Claude (Anthropic) gesendet. Vorschläge prüfen, dann
-        übernehmen.
+        Der Text der Seiten (bei Scans das Seitenbild) wird zur Analyse an Claude (Anthropic)
+        gesendet. Vorschläge prüfen, dann übernehmen.
       </p>
       <div class="mt-2 flex gap-2">
         <button
@@ -79,10 +79,14 @@ function apply(): void {
           Alle Seiten
         </button>
       </div>
+      <label class="mt-2 flex items-center gap-2 text-xs text-gray-600">
+        <input v-model="redaction.readScans" type="checkbox" :disabled="redaction.busy" />
+        Gescannte Seiten per Bilderkennung lesen
+      </label>
       <div v-if="redaction.busy" class="mt-2 flex items-center justify-between text-blue-700">
         <span>
-          Analysiere…
-          <template v-if="redaction.progress.total > 1">
+          {{ redaction.phase === 'ocr' ? 'Lese Scans…' : 'Analysiere…' }}
+          <template v-if="redaction.progress.total > 1 || redaction.phase === 'ocr'">
             ({{ redaction.progress.done }}/{{ redaction.progress.total }})
           </template>
         </span>
@@ -90,9 +94,16 @@ function apply(): void {
       </div>
       <p v-if="redaction.error" role="alert" class="mt-2 text-red-700">{{ redaction.error }}</p>
       <p v-if="notice" class="mt-2 text-green-700" role="status">{{ notice }}</p>
+      <p v-if="redaction.ocrPages > 0" class="mt-2 text-xs text-gray-600">
+        {{ redaction.ocrPages }} gescannte Seite(n) per Bilderkennung gelesen. Die Flächen sind dort
+        ungenauer – bitte prüfen und bei Bedarf anpassen.
+      </p>
+      <p v-if="redaction.ocrError" class="mt-2 text-xs text-amber-700">
+        Bilderkennung teilweise fehlgeschlagen: {{ redaction.ocrError }}
+      </p>
       <p v-if="redaction.pagesWithoutText > 0" class="mt-2 text-xs text-amber-700">
-        {{ redaction.pagesWithoutText }} Seite(n) ohne erkennbaren Text (z. B. Scan) – dort bitte
-        manuell schwärzen.
+        {{ redaction.pagesWithoutText }} Seite(n) ohne erkennbaren Text – dort bitte manuell
+        schwärzen.
       </p>
       <p v-if="redaction.truncatedPages > 0" class="mt-2 text-xs text-amber-700">
         {{ redaction.truncatedPages }} Seite(n) waren zu lang und wurden nur teilweise geprüft.

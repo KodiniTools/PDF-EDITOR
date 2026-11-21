@@ -65,8 +65,8 @@ watch(
   >
     <div class="border-b border-gray-200 p-3">
       <p class="text-xs text-gray-500">
-        Der Text aller Seiten wird mit jeder Frage an Claude (Anthropic) gesendet. Antworten können
-        Fehler enthalten – wichtige Stellen im Dokument prüfen.
+        Der Text aller Seiten (bei Scans einmalig das Seitenbild) wird an Claude (Anthropic)
+        gesendet. Antworten können Fehler enthalten – wichtige Stellen im Dokument prüfen.
       </p>
       <div class="mt-2 flex flex-wrap gap-1">
         <button
@@ -111,14 +111,24 @@ watch(
       <template v-if="ask.pending">
         <div class="pn-q">{{ ask.pending }}</div>
         <div class="flex items-center justify-between text-blue-700">
-          <span>Claude liest das Dokument…</span>
+          <span>
+            <template v-if="ask.reading && ask.reading.total > 1">
+              Lese Seite {{ ask.reading.done + 1 }} von {{ ask.reading.total }}…
+            </template>
+            <template v-else>Claude liest das Dokument…</template>
+          </span>
           <button type="button" class="underline" @click="ask.cancel()">Abbrechen</button>
         </div>
       </template>
       <p v-if="ask.error" role="alert" class="text-red-700">{{ ask.error }}</p>
+      <p v-if="ask.ocrPages > 0" class="text-xs text-gray-600">
+        {{ ask.ocrPages }} gescannte Seite(n) per Bilderkennung gelesen.
+      </p>
+      <p v-if="ask.ocrError" class="text-xs text-amber-700">
+        Bilderkennung teilweise fehlgeschlagen: {{ ask.ocrError }}
+      </p>
       <p v-if="ask.pagesWithoutText > 0" class="text-xs text-amber-700">
-        {{ ask.pagesWithoutText }} Seite(n) ohne erkennbaren Text (z. B. Scan) wurden nicht
-        berücksichtigt.
+        {{ ask.pagesWithoutText }} Seite(n) ohne erkennbaren Text wurden nicht berücksichtigt.
       </p>
       <p v-if="ask.truncated" class="text-xs text-amber-700">
         Das Dokument ist sehr lang; nur der Anfang wurde berücksichtigt.

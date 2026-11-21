@@ -47,6 +47,17 @@ vi.mock('@/private/ask/api', async (orig) => ({
   requestAnswer: answer,
 }))
 
+const { ocrRequest } = vi.hoisted(() => ({
+  ocrRequest: vi.fn<typeof import('@/private/ocr/api').requestOcr>(),
+}))
+vi.mock('@/private/ocr/render', () => ({
+  renderPageImage: async () => ({
+    image: { image: 'x', mediaType: 'image/jpeg', width: 1000, height: 1000 },
+    display: { width: 600, height: 800 },
+  }),
+}))
+vi.mock('@/private/ocr/api', () => ({ requestOcr: ocrRequest }))
+
 function setup(pageCount = 3) {
   const doc = useDocumentStore()
   for (let i = 0; i < pageCount; i++) {
@@ -144,6 +155,8 @@ describe('useAskStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     answer.mockReset()
+    ocrRequest.mockReset()
+    ocrRequest.mockResolvedValue([])
   })
 
   it('sendet den Text aller Seiten und speichert Frage und Antwort', async () => {
@@ -212,5 +225,22 @@ describe('useAskStore', () => {
     expect(await ask.ask('Was steht drin?')).toBe('Was steht drin?')
     expect(ask.error).toMatch(/keinen erkennbaren Text/)
     expect(answer).not.toHaveBeenCalled()
+  })
+
+  it('bezieht gescannte Seiten per Bilderkennung ein (einmal, dann aus dem Cache)', async () => {
+    const { ask } = setup()
+    ocrRequest.mockResolvedValue([{ text: 'Gescannter Text', box: [0, 0, 100, 20] }])
+    answer.mockResolvedValue('A')
+    await ask.ask('Frage 1')
+    expect(answer.mock.calls[0]![0]).toEqual([
+      { page: 1, lines: ['Text Seite 1'] },
+      { page: 2, lines: ['Gescannter Text'] },
+      { page: 3, lines: ['Text Seite 3'] },
+    ])
+    expect(ask.ocrPages).toBe(1)
+    expect(ask.pagesWithoutText).toBe(0)
+    await ask.ask('Frage 2')
+    expect(ocrRequest).toHaveBeenCalledTimes(1)
+    expect(ask.reading).toBeNull()
   })
 })

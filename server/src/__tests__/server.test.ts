@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 
 import { askDocument, buildAskParams } from '../ask.ts'
 import { createHandler, toHttpError } from '../app.ts'
+import { buildOcrParams, recognizePage, sanitizeOcr } from '../ocr.ts'
 import { buildRewriteParams, rewriteText, sanitizeRewrite } from '../rewrite.ts'
 import { ConfigError, DEFAULT_PORT, loadConfig } from '../config.ts'
 import {
@@ -18,6 +19,7 @@ import {
 } from '../suggest.ts'
 import {
   parseAskRequest,
+  parseOcrRequest,
   parseRewriteRequest,
   parseSuggestRequest,
   ValidationError,
@@ -320,6 +322,68 @@ describe('rewrite', () => {
   })
 })
 
+const IMAGE = { image: 'A'.repeat(200), mediaType: 'image/jpeg', width: 1000, height: 1400 }
+
+describe('ocr', () => {
+  it('validiert Bild, Typ und Größe', () => {
+    assert.deepEqual(parseOcrRequest(IMAGE), IMAGE)
+    for (const bad of [
+      null,
+      { ...IMAGE, image: 'kurz' },
+      { ...IMAGE, image: 'A'.repeat(199) + '!' },
+      { ...IMAGE, mediaType: 'image/gif' },
+      { ...IMAGE, width: 0 },
+      { ...IMAGE, height: 4001 },
+      { ...IMAGE, width: 10.5 },
+    ]) {
+      assert.throws(() => parseOcrRequest(bad), ValidationError)
+    }
+  })
+
+  it('schickt das Bild mit Größenangabe und JSON-Schema', () => {
+    const p = buildOcrParams(parseOcrRequest(IMAGE), { model: 'm', effort: 'medium' })
+    const content = p.messages[0]?.content as { type: string; source?: unknown; text?: string }[]
+    assert.deepEqual(content[0]?.source, {
+      type: 'base64',
+      media_type: 'image/jpeg',
+      data: IMAGE.image,
+    })
+    assert.match(content[1]?.text ?? '', /1000 × 1400 Pixel/)
+    assert.equal(p.output_config?.format?.type, 'json_schema')
+  })
+
+  it('begrenzt Rechtecke aufs Bild und verwirft unbrauchbare Zeilen', () => {
+    const req = parseOcrRequest(IMAGE)
+    const out = sanitizeOcr(
+      {
+        lines: [
+          { text: '  Max   Mustermann ', x0: 120, y0: 80, x1: -5, y1: 100 },
+          { text: 'Rand', x0: 900, y0: 1390, x1: 1200, y1: 1500 },
+          { text: '', x0: 0, y0: 0, x1: 10, y1: 10 },
+          { text: 'Punkt', x0: 5, y0: 5, x1: 5, y1: 20 },
+          { text: 'kaputt', x0: 'a', y0: 0, x1: 1, y1: 1 },
+          'Unsinn',
+        ],
+      },
+      req,
+    )
+    assert.deepEqual(out, [
+      { text: 'Max Mustermann', box: [0, 80, 120, 100] },
+      { text: 'Rand', box: [900, 1390, 1000, 1400] },
+    ])
+    assert.deepEqual(sanitizeOcr({}, req), [])
+  })
+
+  it('liefert erkannte Zeilen', async () => {
+    const lines = await recognizePage(
+      fakeStream(message(JSON.stringify({ lines: [{ text: 'A', x0: 1, y0: 2, x1: 30, y1: 12 }] }))),
+      parseOcrRequest(IMAGE),
+      { model: 'm', effort: 'medium', signal: new AbortController().signal },
+    )
+    assert.deepEqual(lines, [{ text: 'A', box: [1, 2, 30, 12] }])
+  })
+})
+
 describe('toHttpError', () => {
   it('bildet SDK-Fehler auf Status ab', () => {
     assert.equal(
@@ -425,6 +489,20 @@ describe('HTTP', () => {
     assert.deepEqual(await res.json(), { text: 'Sehr geehrte Damen und Herren' })
     assert.ok(logs.some((l) => l.startsWith('rewrite ok mode=formal chars=11')))
     assert.ok(!logs.join('\n').includes('Leute'))
+  })
+
+  it('erkennt Scans über /api/ocr, ohne Text oder Bild zu loggen', async () => {
+    next = message(JSON.stringify({ lines: [{ text: 'Geheim', x0: 1, y0: 1, x1: 50, y1: 10 }] }))
+    const res = await fetch(`${base}/api/ocr`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(IMAGE),
+    })
+    assert.equal(res.status, 200)
+    assert.deepEqual(await res.json(), { lines: [{ text: 'Geheim', box: [1, 1, 50, 10] }] })
+    assert.ok(logs.some((l) => l.startsWith('ocr ok size=1000x1400') && l.includes('lines=1')))
+    assert.ok(!logs.join('\n').includes('Geheim'))
+    assert.ok(!logs.join('\n').includes('AAAA'))
   })
 
   it('reicht KI-Fehler als verständliche Meldung durch', async () => {

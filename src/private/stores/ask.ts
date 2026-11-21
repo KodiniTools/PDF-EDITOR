@@ -5,12 +5,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
-import { normalizeRotation } from '@/lib/geometry'
-import { getTextLines } from '@/services/pdfRenderer'
+import type { TextLine } from '@/lib/textLines'
 import { useDocumentStore } from '@/stores/document'
 
 import { requestAnswer, type ChatMessage } from '../ask/api'
 import { SuggestApiError, type PagePayload } from '../suggestions/api'
+import { useOcrStore } from './ocr'
 
 /**
  * Zeichen Dokumenttext pro Anfrage. Backend erlaubt 400 000 Zeichen, nginx und
@@ -70,12 +70,18 @@ export function buildMessages(history: readonly ChatMessage[], question: string)
 
 export const useAskStore = defineStore('ask', () => {
   const doc = useDocumentStore()
+  const ocr = useOcrStore()
 
   const entries = ref<AskEntry[]>([])
   const pending = ref<string | null>(null)
   const error = ref<string | null>(null)
   const pagesWithoutText = ref(0)
   const truncated = ref(false)
+  /** Seiten, deren Text per Bilderkennung (Scan) gelesen wurde. */
+  const ocrPages = ref(0)
+  const ocrError = ref<string | null>(null)
+  /** Fortschritt beim ersten Lesen gescannter Seiten. */
+  const reading = ref<{ done: number; total: number } | null>(null)
   const busy = computed(() => pending.value !== null)
   let controller: AbortController | null = null
   let nextId = 1
@@ -83,9 +89,23 @@ export const useAskStore = defineStore('ask', () => {
   async function collectPages(signal: AbortSignal): Promise<PagePayload[] | null> {
     const payload: PagePayload[] = []
     let empty = 0
-    for (const [index, page] of doc.pages.entries()) {
-      const rotation = normalizeRotation(page.baseRotation + page.rotation)
-      const lines = await getTextLines(page.sourceId, page.sourceIndex, rotation)
+    let scanned = 0
+    ocrError.value = null
+    const pages = [...doc.pages]
+    for (const [index, page] of pages.entries()) {
+      let lines: TextLine[] = []
+      try {
+        // Scans per Bilderkennung (gecacht, daher nur bei der ersten Frage langsam).
+        reading.value = { done: index, total: pages.length }
+        const result = await ocr.linesFor(page, signal, { ocr: true })
+        if (result.source === 'ocr') scanned++
+        lines = result.lines
+      } catch (err) {
+        if (signal.aborted) return null
+        console.error('[pdf-editor] Bilderkennung fehlgeschlagen', err)
+        ocrError.value =
+          err instanceof SuggestApiError ? err.message : 'Bilderkennung fehlgeschlagen.'
+      }
       if (signal.aborted) return null
       const text = lines.map((l) => l.text).filter((t) => t.trim() !== '')
       if (text.length === 0) {
@@ -94,7 +114,9 @@ export const useAskStore = defineStore('ask', () => {
       }
       payload.push({ page: index + 1, lines: text })
     }
+    reading.value = null
     pagesWithoutText.value = empty
+    ocrPages.value = scanned
     return payload
   }
 
@@ -114,7 +136,7 @@ export const useAskStore = defineStore('ask', () => {
       const all = await collectPages(signal)
       if (!all) return question
       if (all.length === 0) {
-        error.value = 'Das Dokument enthält keinen erkennbaren Text (z. B. Scan).'
+        error.value = 'Das Dokument enthält keinen erkennbaren Text.'
         return question
       }
       const limited = limitPages(all, MAX_ASK_CHARS)
@@ -144,6 +166,7 @@ export const useAskStore = defineStore('ask', () => {
     controller?.abort()
     controller = null
     pending.value = null
+    reading.value = null
   }
 
   function clear(): void {
@@ -151,6 +174,8 @@ export const useAskStore = defineStore('ask', () => {
     entries.value = []
     error.value = null
     pagesWithoutText.value = 0
+    ocrPages.value = 0
+    ocrError.value = null
     truncated.value = false
   }
 
@@ -168,6 +193,9 @@ export const useAskStore = defineStore('ask', () => {
     error,
     pagesWithoutText,
     truncated,
+    ocrPages,
+    ocrError,
+    reading,
     busy,
     ask,
     cancel,
