@@ -142,3 +142,65 @@ export function getTextLines(
   textLineCache.set(cacheKey, promise)
   return promise
 }
+
+/** Formularfeld (Widget) einer Seite, wie pdf.js es liefert; Rechteck im PDF-Benutzerraum. */
+export interface RawFormField {
+  /** Vollständiger Feldname (z. B. „antrag.person.name“). */
+  name: string
+  type: 'text' | 'checkbox' | 'radio' | 'combo' | 'listbox' | 'other'
+  /** [x1, y1, x2, y2] im PDF-Benutzerraum. */
+  rect: [number, number, number, number]
+  /** Tooltip/Beschreibung des Felds (/TU). */
+  alternativeText: string
+  /** Aktueller Wert: Text, gewählte Option oder Ein-Zustand. */
+  value: string
+  /** Auswahlfelder: Exportwerte. */
+  options: string[]
+  /** Checkbox/Radio: Ein-Zustand dieses Widgets. */
+  onValue: string
+  multiline: boolean
+  maxLength: number
+  readOnly: boolean
+}
+
+/** Liest die Formularfelder (Widgets) einer Seite. Wird nur im privaten Build genutzt. */
+export async function getFormFields(sourceId: string, pageIndex: number): Promise<RawFormField[]> {
+  const doc = documents.get(sourceId)
+  if (!doc) throw new PdfEditorError('Dokument ist nicht geöffnet.')
+  const page = await doc.getPage(pageIndex + 1)
+  const annotations = (await page.getAnnotations({ intent: 'display' })) as Record<
+    string,
+    unknown
+  >[]
+  const fields: RawFormField[] = []
+  for (const a of annotations) {
+    if (a.annotationType !== 20 || typeof a.fieldName !== 'string' || !a.fieldName) continue // Widget
+    const rect = a.rect as number[] | undefined
+    if (!Array.isArray(rect) || rect.length !== 4) continue
+    const text = (v: unknown) =>
+      typeof v === 'string' ? v : Array.isArray(v) ? String(v[0] ?? '') : ''
+    let type: RawFormField['type'] = 'other'
+    if (a.fieldType === 'Tx') type = 'text'
+    else if (a.fieldType === 'Btn' && a.checkBox) type = 'checkbox'
+    else if (a.fieldType === 'Btn' && a.radioButton) type = 'radio'
+    else if (a.fieldType === 'Ch') type = a.combo ? 'combo' : 'listbox'
+    const options = Array.isArray(a.options)
+      ? (a.options as { exportValue?: unknown; displayValue?: unknown }[]).map((o) =>
+          text(o.exportValue ?? o.displayValue),
+        )
+      : []
+    fields.push({
+      name: a.fieldName,
+      type,
+      rect: [rect[0]!, rect[1]!, rect[2]!, rect[3]!],
+      alternativeText: text(a.alternativeText),
+      value: text(a.fieldValue),
+      options,
+      onValue: text(a.radioButton ? a.buttonValue : a.exportValue),
+      multiline: a.multiLine === true,
+      maxLength: typeof a.maxLen === 'number' ? a.maxLen : 0,
+      readOnly: a.readOnly === true,
+    })
+  }
+  return fields
+}

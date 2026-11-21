@@ -17,6 +17,7 @@ import { requestSuggestions, SuggestApiError, type PagePayload } from '../sugges
 import type { Category } from '../suggestions/categories'
 import { coverage, locateText, type Rect } from '../suggestions/locate'
 import { getMeasure } from '../suggestions/measure'
+import { useOcrStore } from './ocr'
 
 /** Zeichen pro Anfrage (Backend erlaubt 60 000). */
 export const MAX_CHARS_PER_REQUEST = 40_000
@@ -73,6 +74,7 @@ export function batchPages(pages: readonly PagePayload[], maxChars: number): Pag
 
 export const useRedactionStore = defineStore('redaction', () => {
   const doc = useDocumentStore()
+  const ocr = useOcrStore()
 
   const suggestions = ref<Suggestion[]>([])
   const status = ref<'idle' | 'loading' | 'done' | 'error'>('idle')
@@ -82,6 +84,14 @@ export const useRedactionStore = defineStore('redaction', () => {
   const pagesWithoutText = ref(0)
   /** Seiten, deren Text für die Anfrage gekürzt werden musste. */
   const truncatedPages = ref(0)
+  /** Seiten, deren Text per Bilderkennung (Scan) gelesen wurde. */
+  const ocrPages = ref(0)
+  /** Letzter Fehler der Bilderkennung (Analyse läuft für die übrigen Seiten weiter). */
+  const ocrError = ref<string | null>(null)
+  /** Scans per Bilderkennung lesen (Einstellung im Panel). */
+  const readScans = ref(true)
+  /** Laufender Schritt, für die Fortschrittsanzeige. */
+  const phase = ref<'text' | 'ocr' | 'analyze'>('text')
   let controller: AbortController | null = null
 
   /** Vorschläge, deren Seite noch existiert und unverändert gedreht ist. */
@@ -116,18 +126,48 @@ export const useRedactionStore = defineStore('redaction', () => {
     error.value = null
     pagesWithoutText.value = 0
     truncatedPages.value = 0
+    ocrPages.value = 0
+    ocrError.value = null
     progress.value = { done: 0, total: 0 }
 
     try {
       // 1. Text je Seite (aus dem pdf.js-Cache) – Seitennummer = Position in der Liste.
       const linesById = new Map<string, TextLine[]>()
-      const payload: PagePayload[] = []
-      const pageByNumber = new Map<number, PageRef>()
+      const scans: PageRef[] = []
+      phase.value = 'text'
       for (const page of targets) {
         const lines = await getTextLines(page.sourceId, page.sourceIndex, totalRotation(page))
         if (signal.aborted) return
-        linesById.set(page.id, lines)
-        if (lines.length === 0) {
+        if (lines.some((l) => l.text.trim() !== '')) linesById.set(page.id, lines)
+        else scans.push(page)
+      }
+
+      // 1b. Seiten ohne Textebene (Scans) per Bilderkennung lesen.
+      if (readScans.value && scans.length > 0) {
+        phase.value = 'ocr'
+        progress.value = { done: 0, total: scans.length }
+        for (const page of scans) {
+          try {
+            const lines = await ocr.recognize(page, signal)
+            if (lines.length > 0) {
+              linesById.set(page.id, lines)
+              ocrPages.value++
+            }
+          } catch (err) {
+            if (signal.aborted) return
+            console.error('[pdf-editor] Bilderkennung fehlgeschlagen', err)
+            ocrError.value =
+              err instanceof SuggestApiError ? err.message : 'Bilderkennung fehlgeschlagen.'
+          }
+          progress.value = { done: progress.value.done + 1, total: scans.length }
+        }
+      }
+
+      const payload: PagePayload[] = []
+      const pageByNumber = new Map<number, PageRef>()
+      for (const page of targets) {
+        const lines = linesById.get(page.id)
+        if (!lines) {
           pagesWithoutText.value++
           continue
         }
@@ -146,6 +186,7 @@ export const useRedactionStore = defineStore('redaction', () => {
         .filter(
           (b) => b.lines.length < (payload.find((p) => p.page === b.page)?.lines.length ?? 0),
         ).length
+      phase.value = 'analyze'
       progress.value = { done: 0, total: batches.length }
 
       // 2. Nacheinander abfragen (Backend begrenzt parallele Analysen).
@@ -248,6 +289,10 @@ export const useRedactionStore = defineStore('redaction', () => {
     progress,
     pagesWithoutText,
     truncatedPages,
+    ocrPages,
+    ocrError,
+    readScans,
+    phase,
     selectedCount,
     busy,
     forPage,

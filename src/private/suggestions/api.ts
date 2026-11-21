@@ -28,7 +28,7 @@ export class SuggestApiError extends Error {
 /** Zeitlimit pro Anfrage (Backend bricht nach 180 s ab). */
 export const REQUEST_TIMEOUT_MS = 200_000
 
-const ENDPOINT = `${import.meta.env.BASE_URL}api/redaction-suggestions`
+const API_BASE = `${import.meta.env.BASE_URL}api/`
 
 function messageForStatus(status: number, serverMessage: string | undefined): string {
   if (status === 401) return 'Anmeldung abgelaufen. Bitte die Seite neu laden und erneut anmelden.'
@@ -36,8 +36,8 @@ function messageForStatus(status: number, serverMessage: string | undefined): st
   if (status === 413) return 'Zu viel Text auf einmal.'
   if (status === 429) return 'Die KI ist gerade ausgelastet. Bitte gleich noch einmal versuchen.'
   if (status === 502 || status === 503) return 'Das KI-Backend ist nicht erreichbar.'
-  if (status === 504) return 'Die Analyse hat zu lange gedauert.'
-  return `Analyse fehlgeschlagen (HTTP ${status}).`
+  if (status === 504) return 'Die Anfrage hat zu lange gedauert.'
+  return `Anfrage fehlgeschlagen (HTTP ${status}).`
 }
 
 function parseFindings(body: unknown): Finding[] {
@@ -58,28 +58,30 @@ function parseFindings(body: unknown): Finding[] {
 }
 
 /**
- * Fragt Schwärzungsvorschläge für die übergebenen Seiten ab.
+ * POST an einen Endpunkt des privaten Backends (`<base>api/<path>`) mit
+ * Zeitlimit, Abbruch und verständlichen Fehlermeldungen (SuggestApiError).
  * Abbruch über `signal` wirft einen DOMException('AbortError').
  */
-export async function requestSuggestions(
-  pages: readonly PagePayload[],
+export async function postJson(
+  path: string,
+  payload: unknown,
   signal: AbortSignal,
   fetchFn: typeof fetch = fetch,
-): Promise<Finding[]> {
+): Promise<unknown> {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   let res: Response
   try {
-    res = await fetchFn(ENDPOINT, {
+    res = await fetchFn(`${API_BASE}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pages }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.any([signal, timeout]),
       credentials: 'same-origin',
     })
   } catch (err) {
     if (signal.aborted) throw err
     if (timeout.aborted)
-      throw new SuggestApiError('Die Analyse hat zu lange gedauert.', 504, { cause: err })
+      throw new SuggestApiError('Die Anfrage hat zu lange gedauert.', 504, { cause: err })
     throw new SuggestApiError('Server nicht erreichbar. Läuft das Backend?', 0, { cause: err })
   }
 
@@ -96,5 +98,14 @@ export async function requestSuggestions(
       res.status,
     )
   }
-  return parseFindings(body)
+  return body
+}
+
+/** Fragt Schwärzungsvorschläge für die übergebenen Seiten ab. */
+export async function requestSuggestions(
+  pages: readonly PagePayload[],
+  signal: AbortSignal,
+  fetchFn: typeof fetch = fetch,
+): Promise<Finding[]> {
+  return parseFindings(await postJson('redaction-suggestions', { pages }, signal, fetchFn))
 }

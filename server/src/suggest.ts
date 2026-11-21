@@ -3,13 +3,17 @@
  * der Seiten und liefert sie als wörtliche Textstellen je Seite zurück. Die
  * Zuordnung zu Positionen auf der Seite macht das Frontend (pdf.js-Textpositionen).
  */
-import type Anthropic from '@anthropic-ai/sdk'
-
-import type { Effort } from './config.ts'
+import {
+  baseParams,
+  callClaude,
+  parseJson,
+  type CallOptions,
+  type StreamFn,
+  type StreamParams,
+} from './claude.ts'
 import type { PageText, SuggestRequest } from './validate.ts'
 
-type BetaMessage = Anthropic.Beta.Messages.BetaMessage
-type StreamParams = Anthropic.Beta.Messages.MessageCreateParamsNonStreaming
+export { SuggestError, type StreamFn } from './claude.ts'
 
 /** Muss zu CATEGORY_LABELS in src/private/suggestions/categories.ts passen. */
 export const CATEGORIES = [
@@ -36,26 +40,7 @@ export interface Finding {
   reason: string
 }
 
-export class SuggestError extends Error {
-  override name = 'SuggestError'
-  readonly status: number
-  constructor(message: string, status: number, options?: { cause?: unknown }) {
-    super(message, options)
-    this.status = status
-  }
-}
-
-/** Minimale Schnittstelle zum SDK, damit Tests ohne Netz laufen. */
-export type StreamFn = (
-  params: StreamParams,
-  options: { signal: AbortSignal },
-) => { finalMessage(): Promise<BetaMessage> }
-
-export interface SuggestOptions {
-  model: string
-  effort: Effort
-  signal: AbortSignal
-}
+export type SuggestOptions = CallOptions
 
 const MAX_TEXT_LENGTH = 300
 
@@ -112,12 +97,7 @@ export function buildParams(
   opts: Omit<SuggestOptions, 'signal'>,
 ): StreamParams {
   return {
-    model: opts.model,
-    max_tokens: 32_000,
-    // Bei einer Ablehnung durch Sicherheitsklassifikatoren automatisch auf das
-    // empfohlene Ausweichmodell wechseln.
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
+    ...baseParams(opts, 32_000),
     output_config: {
       effort: opts.effort,
       format: { type: 'json_schema', schema: OUTPUT_SCHEMA },
@@ -169,37 +149,16 @@ export function sanitizeFindings(raw: unknown, req: SuggestRequest): Finding[] {
   return out
 }
 
-function textOf(message: BetaMessage): string {
-  return message.content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('')
-}
-
 export async function suggestRedactions(
   stream: StreamFn,
   req: SuggestRequest,
   opts: SuggestOptions,
 ): Promise<Finding[]> {
-  const message = await stream(buildParams(req, opts), { signal: opts.signal }).finalMessage()
-
-  switch (message.stop_reason) {
-    case 'refusal':
-      throw new SuggestError('Claude hat die Analyse dieses Dokuments abgelehnt.', 422, {
-        cause: message.stop_details,
-      })
-    case 'max_tokens':
-    case 'model_context_window_exceeded':
-      throw new SuggestError(
-        'Die Antwort war zu lang. Bitte weniger Seiten auf einmal prüfen.',
-        422,
-      )
-    default:
-      break
-  }
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(textOf(message))
-  } catch (err) {
-    throw new SuggestError('Die Antwort von Claude war nicht lesbar.', 502, { cause: err })
-  }
-  return sanitizeFindings(parsed, req)
+  const text = await callClaude(
+    stream,
+    buildParams(req, opts),
+    opts.signal,
+    'Bitte weniger Seiten auf einmal prüfen.',
+  )
+  return sanitizeFindings(parseJson(text), req)
 }

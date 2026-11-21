@@ -29,6 +29,14 @@ const REDACT_PREVIEW = 'rgba(0, 0, 0, 0.6)'
 const SuggestionOverlay = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/SuggestionOverlay.vue'))
   : null
+/** Vorschau ausgefüllter Formularfelder – nur im privaten Build. */
+const FormOverlay = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/FormOverlay.vue'))
+  : null
+/** KI-Umschreiben unter ausgewählten Textfeldern – nur im privaten Build. */
+const TextAssist = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/TextAssist.vue'))
+  : null
 
 const rotation = computed(() => normalizeRotation(props.page.baseRotation + props.page.rotation))
 const size = computed(() => displaySize(props.page.box, rotation.value))
@@ -39,6 +47,13 @@ const editingId = ref<string | null>(null)
 /** Undo-Gruppe der laufenden Textbearbeitung (Tippen = ein Schritt). */
 let editGroup: string | null = null
 const renderError = ref<string | null>(null)
+
+/** Ausgewähltes Textfeld dieser Seite (für die KI-Leiste im privaten Build). */
+const selectedText = computed(() => {
+  if (!TextAssist) return null
+  const a = props.page.annotations.find((x) => x.id === store.selectedAnnotationId)
+  return a?.kind === 'text' ? a : null
+})
 
 interface DragState {
   mode: 'move' | 'resize' | 'create'
@@ -525,7 +540,15 @@ function px(v: number): string {
         />
       </template>
 
+      <component :is="FormOverlay" v-if="FormOverlay" :page="page" :zoom="zoom" />
       <component :is="SuggestionOverlay" v-if="SuggestionOverlay" :page="page" :zoom="zoom" />
+      <component
+        :is="TextAssist"
+        v-if="TextAssist && selectedText"
+        :page-id="page.id"
+        :annotation="selectedText"
+        :zoom="zoom"
+      />
 
       <div
         v-if="preview"

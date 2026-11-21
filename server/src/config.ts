@@ -13,6 +13,8 @@ export interface Config {
   maxBodyBytes: number
   /** Maximale Textmenge (Zeichen) pro Analyse-Request. */
   maxChars: number
+  /** Maximale Dokumenttextmenge (Zeichen) für Fragen/Zusammenfassen. */
+  maxAskChars: number
   /** Zeitlimit für einen Aufruf der Anthropic API. */
   timeoutMs: number
 }
@@ -56,6 +58,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     effort,
     maxBodyBytes: int(env, 'MAX_BODY_BYTES', 1_000_000, 10_000, 10_000_000),
     maxChars: int(env, 'MAX_CHARS', 60_000, 1_000, 400_000),
+    // Passt mit Puffer in MAX_BODY_BYTES (1 MB) bzw. client_max_body_size 1m.
+    maxAskChars: int(env, 'MAX_ASK_CHARS', 400_000, 1_000, 2_000_000),
     timeoutMs: int(env, 'TIMEOUT_MS', 180_000, 5_000, 600_000),
   }
 }

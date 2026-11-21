@@ -40,6 +40,17 @@ vi.mock('@/private/suggestions/api', async (orig) => ({
   requestSuggestions,
 }))
 
+const { ocrRequest } = vi.hoisted(() => ({
+  ocrRequest: vi.fn<typeof import('@/private/ocr/api').requestOcr>(),
+}))
+vi.mock('@/private/ocr/render', () => ({
+  renderPageImage: async () => ({
+    image: { image: 'x', mediaType: 'image/jpeg', width: 1000, height: 1000 },
+    display: { width: 600, height: 800 },
+  }),
+}))
+vi.mock('@/private/ocr/api', () => ({ requestOcr: ocrRequest }))
+
 function setup() {
   const doc = useDocumentStore()
   for (const [id, sourceIndex] of [
@@ -77,6 +88,8 @@ describe('useRedactionStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     requestSuggestions.mockReset()
+    ocrRequest.mockReset()
+    ocrRequest.mockResolvedValue([])
   })
 
   it('verortet Vorschläge und übernimmt sie als echte Schwärzung (ein Undo-Schritt)', async () => {
@@ -149,5 +162,52 @@ describe('useRedactionStore', () => {
     await redaction.analyze('all')
     expect(redaction.status).toBe('error')
     expect(redaction.error).toBe('Die KI ist gerade ausgelastet.')
+  })
+
+  it('liest Scans per Bilderkennung und schlägt dort Schwärzungen vor', async () => {
+    const { redaction } = setup()
+    // Bild 1000×1000 px, Seite 600×800 pt → x * 0,6, y * 0,8
+    ocrRequest.mockResolvedValue([{ text: 'Gez. Erika Musterfrau', box: [100, 100, 600, 150] }])
+    requestSuggestions.mockResolvedValue([
+      { page: 2, text: 'Erika Musterfrau', category: 'name', reason: '' },
+    ])
+    await redaction.analyze('all')
+
+    expect(ocrRequest).toHaveBeenCalledTimes(1) // nur Seite 2 hat keine Textebene
+    expect(requestSuggestions.mock.calls[0]![0]).toEqual([
+      { page: 1, lines: ['Kunde: Max Mustermann'] },
+      { page: 2, lines: ['Gez. Erika Musterfrau'] },
+    ])
+    expect(redaction.ocrPages).toBe(1)
+    expect(redaction.pagesWithoutText).toBe(0)
+    const s = redaction.forPage('p2')[0]!
+    const r = s.rects[0]!
+    // Zeile y 80–120 pt (+ Rand), Text beginnt hinter „Gez. “
+    expect(r.y).toBeLessThan(80)
+    expect(r.y + r.height).toBeGreaterThan(120)
+    expect(r.x).toBeGreaterThan(60)
+    expect(r.x + r.width).toBeGreaterThan(355)
+
+    // Erneute Analyse nutzt den Cache
+    await redaction.analyze('all')
+    expect(ocrRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('überspringt Scans, wenn die Bilderkennung aus ist oder scheitert', async () => {
+    const { redaction } = setup()
+    const { SuggestApiError } = await import('@/private/suggestions/api')
+    requestSuggestions.mockResolvedValue([])
+    redaction.readScans = false
+    await redaction.analyze('all')
+    expect(ocrRequest).not.toHaveBeenCalled()
+    expect(redaction.pagesWithoutText).toBe(1)
+
+    redaction.readScans = true
+    ocrRequest.mockRejectedValue(new SuggestApiError('Die KI ist gerade ausgelastet.', 429))
+    await redaction.analyze('all')
+    expect(redaction.status).toBe('done')
+    expect(redaction.ocrError).toBe('Die KI ist gerade ausgelastet.')
+    expect(redaction.pagesWithoutText).toBe(1)
+    expect(requestSuggestions).toHaveBeenCalledTimes(2)
   })
 })
