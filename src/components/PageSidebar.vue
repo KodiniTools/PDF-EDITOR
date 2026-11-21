@@ -36,7 +36,26 @@ function onDragEnd(): void {
     aria-label="Seitenübersicht"
   >
     <div class="border-b border-gray-200 px-3 py-2 text-xs text-gray-500">
-      {{ store.pages.length }} Seite(n) · ziehen zum Sortieren
+      <div>{{ store.pages.length }} Seite(n) · ziehen zum Sortieren</div>
+      <div class="mt-1 flex items-center justify-between gap-1" data-testid="mark-bar">
+        <span>{{ store.markedPages.length }} markiert</span>
+        <button
+          v-if="store.markedPages.length < store.pages.length"
+          type="button"
+          class="text-blue-700 hover:underline"
+          @click="store.setAllMarked(true)"
+        >
+          Alle
+        </button>
+        <button
+          v-if="store.markedPages.length > 0"
+          type="button"
+          class="text-blue-700 hover:underline"
+          @click="store.setAllMarked(false)"
+        >
+          Keine
+        </button>
+      </div>
     </div>
     <ol class="flex-1 space-y-1 overflow-y-auto p-2">
       <li
@@ -59,10 +78,12 @@ function onDragEnd(): void {
           :index="index"
           :total="store.pages.length"
           :selected="page.id === store.selectedPageId"
+          :marked="store.markedPageIds.includes(page.id)"
           @select="store.selectPage(page.id)"
           @rotate="store.rotatePage(page.id, $event)"
           @remove="store.removePage(page.id)"
           @move="store.movePage(index, $event)"
+          @toggle-mark="store.toggleMarked(page.id)"
         />
       </li>
     </ol>

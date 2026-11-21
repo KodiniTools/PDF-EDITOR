@@ -49,6 +49,11 @@ export const useDocumentStore = defineStore('document', () => {
   const sources = ref<SourceDocument[]>([])
   const pages = ref<PageRef[]>([])
   const selectedPageId = ref<string | null>(null)
+  /**
+   * In der Seitenleiste markierte Seiten (z. B. für den Export). Gehört nicht zum
+   * Undo-Verlauf; gelöschte Seiten fallen über `markedPages` automatisch heraus.
+   */
+  const markedPageIds = ref<string[]>([])
   const selectedAnnotationId = ref<string | null>(null)
   const tool = ref<Tool>('select')
   const zoom = ref(1)
@@ -185,6 +190,23 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  /** Markierte Seiten in Dokumentreihenfolge (nur noch vorhandene). */
+  const markedPages = computed(() => {
+    const marked = new Set(markedPageIds.value)
+    return pages.value.filter((p) => marked.has(p.id))
+  })
+
+  function toggleMarked(pageId: string): void {
+    if (!findPage(pageId)) return
+    markedPageIds.value = markedPageIds.value.includes(pageId)
+      ? markedPageIds.value.filter((id) => id !== pageId)
+      : [...markedPageIds.value, pageId]
+  }
+
+  function setAllMarked(marked: boolean): void {
+    markedPageIds.value = marked ? pages.value.map((p) => p.id) : []
+  }
+
   function selectPage(pageId: string): void {
     if (findPage(pageId)) {
       selectedPageId.value = pageId
@@ -310,9 +332,14 @@ export const useDocumentStore = defineStore('document', () => {
     if (next !== 'select') selectedAnnotationId.value = null
   }
 
-  async function exportDocument(): Promise<Uint8Array> {
+  /**
+   * Exportiert das Dokument; mit `pageIds` nur diese Seiten (in Dokumentreihenfolge).
+   */
+  async function exportDocument(pageIds?: readonly string[]): Promise<Uint8Array> {
     busy.value = true
     error.value = null
+    const wanted = pageIds ? new Set(pageIds) : null
+    const exportPages = wanted ? pages.value.filter((p) => wanted.has(p.id)) : pages.value
     try {
       if (__PRIVATE__) {
         // Privater Build: echte Schwärzung (MuPDF, lazy geladen). Im öffentlichen
@@ -321,10 +348,10 @@ export const useDocumentStore = defineStore('document', () => {
           import('@/private/redaction/exportRedacted'),
           import('@/private/stores/forms'),
         ])
-        const formValues = useFormStore().valuesForExport(pages.value)
-        return (await exportWithRedactions(sourceBytes, pages.value, { formValues })).bytes
+        const formValues = useFormStore().valuesForExport(exportPages)
+        return (await exportWithRedactions(sourceBytes, exportPages, { formValues })).bytes
       }
-      return await exportPdf(sourceBytes, pages.value)
+      return await exportPdf(sourceBytes, exportPages)
     } catch (err) {
       console.error('[pdf-editor] Export fehlgeschlagen', err)
       error.value = `Export fehlgeschlagen: ${messageOf(err)}`
@@ -392,6 +419,7 @@ export const useDocumentStore = defineStore('document', () => {
     history.clear()
     selectedPageId.value = null
     selectedAnnotationId.value = null
+    markedPageIds.value = []
     error.value = null
     await Promise.allSettled(ids.map((id) => closeDocument(id)))
   }
@@ -401,6 +429,10 @@ export const useDocumentStore = defineStore('document', () => {
     pages,
     selectedPageId,
     selectedAnnotationId,
+    markedPageIds,
+    markedPages,
+    toggleMarked,
+    setAllMarked,
     tool,
     zoom,
     busy,
