@@ -28,16 +28,55 @@ export class SuggestError extends Error {
   }
 }
 
-/** Gemeinsame Request-Felder: Modell, automatischer Fallback bei Ablehnung. */
+/**
+ * Gemeinsame Request-Felder. Bewusst ohne serverseitigen Fallback (`fallbacks`):
+ * Die Anfrage läuft und wird abgerechnet ausschließlich über das gewählte Modell.
+ * Lehnt es ab, kommt eine verständliche Fehlermeldung (422) statt eines stillen
+ * Modellwechsels. (Claude Haiku 5.5 würde `fallbacks` ohnehin mit 400 ablehnen.)
+ */
 export function baseParams(opts: Omit<CallOptions, 'signal'>, maxTokens: number) {
   return {
     model: opts.model,
     max_tokens: maxTokens,
-    // Bei einer Ablehnung durch Sicherheitsklassifikatoren automatisch auf das
-    // empfohlene Ausweichmodell wechseln.
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
   } satisfies Partial<StreamParams>
+}
+
+/** Tatsächlich verwendetes Modell und Tokenverbrauch einer Anfrage (für Anzeige/Log). */
+export interface UsageMeta {
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}
+
+/**
+ * Hüllt `stream` ein und summiert Modell + Tokens aller Antworten einer Anfrage.
+ * `message.model` ist das Modell, das die Antwort wirklich erzeugt hat.
+ */
+export function trackUsage(stream: StreamFn): { stream: StreamFn; meta: () => UsageMeta | null } {
+  let meta: UsageMeta | null = null
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+  return {
+    stream: (params, options) => {
+      const inner = stream(params, options)
+      return {
+        finalMessage: async () => {
+          const message = await inner.finalMessage()
+          const u = (message.usage ?? {}) as unknown as Record<string, unknown>
+          meta = {
+            model: typeof message.model === 'string' ? message.model : params.model,
+            inputTokens: (meta?.inputTokens ?? 0) + n(u.input_tokens),
+            outputTokens: (meta?.outputTokens ?? 0) + n(u.output_tokens),
+            cacheReadTokens: (meta?.cacheReadTokens ?? 0) + n(u.cache_read_input_tokens),
+            cacheWriteTokens: (meta?.cacheWriteTokens ?? 0) + n(u.cache_creation_input_tokens),
+          }
+          return message
+        },
+      }
+    },
+    meta: () => meta,
+  }
 }
 
 export function textOf(message: BetaMessage): string {

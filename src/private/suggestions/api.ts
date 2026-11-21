@@ -30,6 +30,49 @@ export const REQUEST_TIMEOUT_MS = 200_000
 
 const API_BASE = `${import.meta.env.BASE_URL}api/`
 
+/** Tatsächlich verwendetes Modell und Tokens einer Anfrage (Feld `meta` der Antwort). */
+export interface UsageMeta {
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+}
+
+/**
+ * Verbindung zur Modellauswahl (stores/model.ts), ohne dass diese Datei Pinia kennt:
+ * `model()` liefert das gewählte Modell (oder null = Standard des Servers),
+ * `onUsage` erhält das Modell/die Tokens jeder erfolgreichen Antwort.
+ */
+export const apiHooks: {
+  model: () => string | null
+  onUsage: (meta: UsageMeta, requested: string | null) => void
+} = {
+  model: () => null,
+  onUsage: () => {},
+}
+
+export function parseUsageMeta(body: unknown): UsageMeta | null {
+  const m = (body as { meta?: unknown } | null)?.meta as Record<string, unknown> | null | undefined
+  if (!m || typeof m.model !== 'string') return null
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0)
+  return {
+    model: m.model,
+    inputTokens: n(m.inputTokens),
+    outputTokens: n(m.outputTokens),
+    cacheReadTokens: n(m.cacheReadTokens),
+    cacheWriteTokens: n(m.cacheWriteTokens),
+  }
+}
+
+/** Ergänzt das gewählte Modell, sofern die Nutzlast ein Objekt ist. */
+function withModel(payload: unknown, model: string | null): unknown {
+  if (!model || typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return payload
+  }
+  return { ...payload, model }
+}
+
 function messageForStatus(status: number, serverMessage: string | undefined): string {
   if (status === 401) return 'Anmeldung abgelaufen. Bitte die Seite neu laden und erneut anmelden.'
   if (serverMessage) return serverMessage
@@ -69,12 +112,13 @@ export async function postJson(
   fetchFn: typeof fetch = fetch,
 ): Promise<unknown> {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  const model = apiHooks.model()
   let res: Response
   try {
     res = await fetchFn(`${API_BASE}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(withModel(payload, model)),
       signal: AbortSignal.any([signal, timeout]),
       credentials: 'same-origin',
     })
@@ -97,6 +141,14 @@ export async function postJson(
       messageForStatus(res.status, typeof serverMessage === 'string' ? serverMessage : undefined),
       res.status,
     )
+  }
+  const meta = parseUsageMeta(body)
+  if (meta) {
+    try {
+      apiHooks.onUsage(meta, model)
+    } catch (err) {
+      console.error('[pdf-editor] Verbrauchsanzeige:', err)
+    }
   }
   return body
 }

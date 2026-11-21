@@ -8,6 +8,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { askDocument, buildAskParams } from '../ask.ts'
 import { createHandler, toHttpError } from '../app.ts'
 import { buildFormParams, sanitizeSuggestions, suggestFormValues } from '../forms.ts'
+import { buildGenerateParams, generateDocument, sanitizeDocument } from '../generate.ts'
 import { buildOcrParams, recognizePage, sanitizeOcr } from '../ocr.ts'
 import { buildRewriteParams, rewriteText, sanitizeRewrite } from '../rewrite.ts'
 import { ConfigError, DEFAULT_PORT, loadConfig } from '../config.ts'
@@ -21,6 +22,8 @@ import {
 import {
   parseAskRequest,
   parseFormRequest,
+  parseGenerateRequest,
+  parseModel,
   parseOcrRequest,
   parseRewriteRequest,
   parseSuggestRequest,
@@ -61,6 +64,114 @@ function fakeStream(result: BetaMessage | Error, seen?: { params?: unknown }): S
     }
   }
 }
+
+describe('Modellauswahl', () => {
+  it('Standard-Allowlist mit Standardmodell vorne', () => {
+    const c = loadConfig({ ANTHROPIC_API_KEY: 'k' })
+    assert.deepEqual(c.models, [
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
+      'claude-fable-5-2',
+    ])
+  })
+  it('ANTHROPIC_MODELS ergänzt das Standardmodell und prüft IDs', () => {
+    const c = loadConfig({
+      ANTHROPIC_API_KEY: 'k',
+      ANTHROPIC_MODEL: 'claude-sonnet-5-5',
+      ANTHROPIC_MODELS: ' claude-haiku-5-5 , claude-opus-5-5 ',
+    })
+    assert.deepEqual(c.models, ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5'])
+    assert.throws(
+      () => loadConfig({ ANTHROPIC_API_KEY: 'k', ANTHROPIC_MODELS: 'gpt-4' }),
+      /ANTHROPIC_MODELS/,
+    )
+    assert.throws(() => loadConfig({ ANTHROPIC_API_KEY: 'k', ANTHROPIC_MODEL: 'x y' }), /MODEL/)
+  })
+  it('parseModel: Standard, Allowlist, Fehler', () => {
+    const allowed = ['claude-opus-5-5', 'claude-haiku-5-5']
+    assert.equal(parseModel({}, allowed, 'claude-opus-5-5'), 'claude-opus-5-5')
+    assert.equal(parseModel(null, allowed, 'claude-opus-5-5'), 'claude-opus-5-5')
+    assert.equal(parseModel({ model: 'claude-haiku-5-5' }, allowed, 'x'), 'claude-haiku-5-5')
+    assert.throws(() => parseModel({ model: 'claude-fable-5-2' }, allowed, 'x'), ValidationError)
+    assert.throws(() => parseModel({ model: 1 }, allowed, 'x'), ValidationError)
+  })
+})
+
+describe('Neues Dokument', () => {
+  const GEN = { prompt: ' Rechnungsvorlage ', format: 'Letter', orientation: 'portrait' }
+  it('parseGenerateRequest prüft Eingaben', () => {
+    assert.deepEqual(parseGenerateRequest(GEN), {
+      prompt: 'Rechnungsvorlage',
+      format: 'Letter',
+      orientation: 'portrait',
+      language: 'de',
+    })
+    assert.throws(() => parseGenerateRequest({ ...GEN, prompt: ' ' }), ValidationError)
+    assert.throws(() => parseGenerateRequest({ ...GEN, format: 'B5' }), /format/)
+    assert.throws(() => parseGenerateRequest({ ...GEN, orientation: 'quer' }), /orientation/)
+    assert.throws(() => parseGenerateRequest({ ...GEN, language: 'xx' }), /language/)
+    assert.throws(
+      () => parseGenerateRequest({ ...GEN, prompt: 'x'.repeat(4_001) }),
+      (err: unknown) => err instanceof ValidationError && err.status === 413,
+    )
+  })
+  it('buildGenerateParams: Format, Sprache, Schema, kein Fallback', () => {
+    const p = buildGenerateParams(
+      { prompt: 'Vorlage', format: 'A3', orientation: 'landscape', language: 'en' },
+      { model: 'claude-haiku-5-5', effort: 'medium' },
+    )
+    assert.equal(p.model, 'claude-haiku-5-5')
+    assert.equal('fallbacks' in p, false)
+    assert.equal(p.output_config?.format?.type, 'json_schema')
+    const content = p.messages[0]?.content
+    assert.ok(typeof content === 'string' && content.includes('DIN A3, Querformat'))
+    assert.ok(typeof content === 'string' && content.includes('Sprache: Englisch'))
+  })
+  it('sanitizeDocument verwirft Ungültiges und gleicht Tabellen an', () => {
+    const doc = sanitizeDocument({
+      title: '  Mein\nTitel ',
+      blocks: [
+        { type: 'heading', level: 7, text: 'Kopf' },
+        { type: 'paragraph', text: '   ' },
+        { type: 'bullets', items: ['a', '', 3] },
+        { type: 'table', rows: [['A', 'B', 'C'], ['1'], 'kaputt'], header: true },
+        { type: 'table', rows: [] },
+        { type: 'bild', text: 'x' },
+        { type: 'field', text: 'Name' },
+        { type: 'pagebreak' },
+      ],
+    })
+    assert.equal(doc.title, 'Mein Titel')
+    assert.deepEqual(doc.blocks, [
+      { type: 'heading', level: 2, text: 'Kopf' },
+      { type: 'bullets', items: ['a'] },
+      {
+        type: 'table',
+        rows: [
+          ['A', 'B', 'C'],
+          ['1', '', ''],
+        ],
+        header: true,
+      },
+      { type: 'field', text: 'Name' },
+      { type: 'pagebreak' },
+    ])
+    assert.throws(() => sanitizeDocument({ title: 'x', blocks: [] }), SuggestError)
+    assert.throws(() => sanitizeDocument({}), SuggestError)
+    assert.equal(sanitizeDocument({ blocks: [{ type: 'divider' }] }).title, 'Neues Dokument')
+  })
+  it('generateDocument: Ablehnung → 422 (kein Modellwechsel)', async () => {
+    await assert.rejects(
+      generateDocument(
+        fakeStream(message('', 'refusal')),
+        { prompt: 'x', format: 'A4', orientation: 'portrait', language: 'de' },
+        { model: 'claude-opus-5-5', effort: 'medium', signal: new AbortController().signal },
+      ),
+      (err: unknown) => err instanceof SuggestError && err.status === 422,
+    )
+  })
+})
 
 describe('loadConfig', () => {
   it('verlangt einen API-Key', () => {
@@ -117,11 +228,11 @@ describe('parseSuggestRequest', () => {
 })
 
 describe('buildParams', () => {
-  it('nutzt Modell, Fallback, Effort und JSON-Schema', () => {
+  it('nutzt Modell, Effort und JSON-Schema – ohne Fallback auf andere Modelle', () => {
     const p = buildParams(REQ, { model: 'claude-opus-5-5', effort: 'medium' })
     assert.equal(p.model, 'claude-opus-5-5')
-    assert.equal(p.fallbacks, 'default')
-    assert.deepEqual(p.betas, ['server-side-fallback-2026-07-01'])
+    assert.equal('fallbacks' in p, false)
+    assert.equal('betas' in p, false)
     assert.equal(p.output_config?.effort, 'medium')
     assert.equal(p.output_config?.format?.type, 'json_schema')
     const content = p.messages[0]?.content
@@ -509,19 +620,31 @@ describe('HTTP', () => {
   let server: Server
   let base: string
   let next: BetaMessage | Error = message('{"findings":[]}')
+  let lastParams: { model?: string } = {}
   const logs: string[] = []
+  const META0 = {
+    model: 'claude-opus-5-5',
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+  }
 
   before(async () => {
     const handler = createHandler({
       config: {
         model: 'claude-opus-5-5',
+        models: ['claude-opus-5-5', 'claude-haiku-5-5'],
         effort: 'medium',
         maxBodyBytes: 20_000,
         maxChars: 10_000,
         maxAskChars: 10_000,
         timeoutMs: 5_000,
       },
-      stream: (params, options) => fakeStream(next)(params, options),
+      stream: (params, options) => {
+        lastParams = params as { model?: string }
+        return fakeStream(next)(params, options)
+      },
       log: (l) => logs.push(l),
     })
     server = createServer((req, res) => void handler(req, res))
@@ -540,7 +663,11 @@ describe('HTTP', () => {
   it('GET /api/health', async () => {
     const res = await fetch(`${base}/api/health`)
     assert.equal(res.status, 200)
-    assert.deepEqual(await res.json(), { ok: true, model: 'claude-opus-5-5' })
+    assert.deepEqual(await res.json(), {
+      ok: true,
+      model: 'claude-opus-5-5',
+      models: ['claude-opus-5-5', 'claude-haiku-5-5'],
+    })
   })
 
   it('liefert Vorschläge und loggt keinen Dokumentinhalt', async () => {
@@ -576,21 +703,21 @@ describe('HTTP', () => {
       body: JSON.stringify(ASK),
     })
     assert.equal(res.status, 200)
-    assert.deepEqual(await res.json(), { answer: 'Erika Musterfrau (S. 2)' })
+    assert.deepEqual(await res.json(), { answer: 'Erika Musterfrau (S. 2)', meta: META0 })
     assert.ok(logs.some((l) => l.startsWith('ask ok') && l.includes('turns=3')))
     assert.ok(!logs.join('\n').includes('Absender'))
     assert.equal((await fetch(`${base}/api/ask`)).status, 405)
   })
 
   it('schreibt Text über /api/rewrite um, ohne ihn zu loggen', async () => {
-    next = message(JSON.stringify({ text: 'Sehr geehrte Damen und Herren' }))
+    next = message(JSON.stringify({ text: 'Sehr geehrte Damen und Herren', meta: META0 }))
     const res = await fetch(`${base}/api/rewrite`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: 'Hallo Leute', mode: 'formal' }),
     })
     assert.equal(res.status, 200)
-    assert.deepEqual(await res.json(), { text: 'Sehr geehrte Damen und Herren' })
+    assert.deepEqual(await res.json(), { text: 'Sehr geehrte Damen und Herren', meta: META0 })
     assert.ok(logs.some((l) => l.startsWith('rewrite ok mode=formal chars=11')))
     assert.ok(!logs.join('\n').includes('Leute'))
   })
@@ -603,7 +730,10 @@ describe('HTTP', () => {
       body: JSON.stringify(IMAGE),
     })
     assert.equal(res.status, 200)
-    assert.deepEqual(await res.json(), { lines: [{ text: 'Geheim', box: [1, 1, 50, 10] }] })
+    assert.deepEqual(await res.json(), {
+      lines: [{ text: 'Geheim', box: [1, 1, 50, 10] }],
+      meta: META0,
+    })
     assert.ok(logs.some((l) => l.startsWith('ocr ok size=1000x1400') && l.includes('lines=1')))
     assert.ok(!logs.join('\n').includes('Geheim'))
     assert.ok(!logs.join('\n').includes('AAAA'))
@@ -617,9 +747,80 @@ describe('HTTP', () => {
       body: JSON.stringify(FORM),
     })
     assert.equal(res.status, 200)
-    assert.deepEqual(await res.json(), { suggestions: [{ id: 'f1', value: 'Max', reason: 'r' }] })
+    assert.deepEqual(await res.json(), {
+      suggestions: [{ id: 'f1', value: 'Max', reason: 'r' }],
+      meta: META0,
+    })
     assert.ok(logs.some((l) => l.startsWith('form ok fields=4')))
     assert.ok(!logs.join('\n').includes('Hauptstr'))
+  })
+
+  it('nutzt das gewählte Modell und meldet Modell und Tokens zurück', async () => {
+    const reply = message(JSON.stringify({ text: 'Hallo' }))
+    next = {
+      ...reply,
+      model: 'claude-haiku-5-5',
+      usage: { input_tokens: 120, output_tokens: 30, cache_read_input_tokens: 5 },
+    } as unknown as BetaMessage
+    const res = await fetch(`${base}/api/rewrite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Hallo', mode: 'correct', model: 'claude-haiku-5-5' }),
+    })
+    assert.equal(res.status, 200)
+    assert.equal(lastParams.model, 'claude-haiku-5-5')
+    assert.deepEqual(((await res.json()) as { meta: unknown }).meta, {
+      model: 'claude-haiku-5-5',
+      inputTokens: 120,
+      outputTokens: 30,
+      cacheReadTokens: 5,
+      cacheWriteTokens: 0,
+    })
+    assert.ok(logs.some((l) => l.includes('model=claude-haiku-5-5 in=120 out=30')))
+  })
+
+  it('lehnt Modelle außerhalb der Allowlist ab, ohne Claude aufzurufen', async () => {
+    lastParams = {}
+    for (const model of ['claude-fable-5-2', 42, '']) {
+      const res = await fetch(`${base}/api/rewrite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: 'Hallo', mode: 'correct', model }),
+      })
+      assert.equal(res.status, 400)
+      assert.match(((await res.json()) as { error: string }).error, /"model"/)
+    }
+    assert.equal(lastParams.model, undefined)
+  })
+
+  it('erzeugt ein Dokument über /api/generate-document, ohne die Beschreibung zu loggen', async () => {
+    next = message(
+      JSON.stringify({
+        title: 'Vorlage',
+        blocks: [
+          { type: 'heading', level: 1, text: 'Anmeldung' },
+          { type: 'field', text: 'Name' },
+        ],
+      }),
+    )
+    const res = await fetch(`${base}/api/generate-document`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: 'Anmeldeformular Sportverein Geheimclub',
+        format: 'A5',
+        orientation: 'landscape',
+        language: 'de',
+      }),
+    })
+    assert.equal(res.status, 200)
+    const body = (await res.json()) as { document: { title: string; blocks: unknown[] } }
+    assert.equal(body.document.title, 'Vorlage')
+    assert.equal(body.document.blocks.length, 2)
+    assert.ok(
+      logs.some((l) => l.startsWith('generate ok format=A5:landscape') && l.includes('blocks=2')),
+    )
+    assert.ok(!logs.join('\n').includes('Geheimclub'))
   })
 
   it('reicht KI-Fehler als verständliche Meldung durch', async () => {
