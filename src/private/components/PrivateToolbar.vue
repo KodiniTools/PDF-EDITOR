@@ -3,7 +3,7 @@
  * Toolbar-Ergänzung des privaten Builds: „Neues Dokument“ und die Modellauswahl
  * für alle KI-Funktionen samt Anzeige des zuletzt abgerechneten Modells.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { formatUsd, MODEL_INFO, modelLabel } from '../models'
 import { useCostStore } from '../stores/costs'
@@ -28,12 +28,22 @@ onMounted(() => {
 })
 onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
 
+// Eigene Zählung ist sofort aktuell: nach jeder KI-Anfrage die Summe nachladen.
+watch(
+  () => models.requests,
+  () => {
+    if (costs.report?.source === 'local') void costs.load()
+  },
+)
+
 const costTitle = computed(() => {
   if (costs.configured === false) return 'Kostenrechner: auf dem Server nicht eingerichtet'
   if (!costs.report) return 'Kosten der Anthropic API'
   const a = costs.account
   return [
-    `Dieser Monat: ${formatUsd(costs.monthUsd)} (4–24 h verzögert)`,
+    costs.report.source === 'local'
+      ? `Dieser Monat: ca. ${formatUsd(costs.monthUsd)} (Schätzung, nur dieser Editor)`
+      : `Dieser Monat: ${formatUsd(costs.monthUsd)} (4–24 h verzögert)`,
     a.balance >= 0
       ? `Guthaben (geschätzt): ${formatUsd(a.balance)}`
       : `Offener Betrag: ${formatUsd(-a.balance)}`,
@@ -97,7 +107,10 @@ const usageTitle = computed(() => {
       data-testid="cost-button"
       @click="showCosts = true"
     >
-      Kosten<template v-if="costs.report">: {{ formatUsd(costs.monthUsd) }}</template>
+      Kosten<template v-if="costs.report"
+        >: {{ costs.report.source === 'local' ? '≈ ' : ''
+        }}{{ formatUsd(costs.monthUsd) }}</template
+      >
     </button>
     <NewDocumentDialog v-if="showNew" @close="showNew = false" />
     <CostDialog v-if="showCosts" @close="showCosts = false" />

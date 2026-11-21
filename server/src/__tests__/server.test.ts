@@ -708,6 +708,7 @@ describe('HTTP', () => {
       model: 'claude-opus-5-5',
       models: ['claude-opus-5-5', 'claude-haiku-5-5'],
       costs: false,
+      costSource: null,
     })
   })
 

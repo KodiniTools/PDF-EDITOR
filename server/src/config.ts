@@ -25,6 +25,8 @@ export interface Config {
    * null = Kostenrechner aus.
    */
   adminKey: string | null
+  /** JSON-Datei der eigenen Kostenzählung (USAGE_FILE, sonst systemd-StateDirectory). */
+  usageFile: string
 }
 
 export class ConfigError extends Error {
@@ -71,6 +73,14 @@ function parseModels(raw: string | undefined, model: string): string[] {
   return [...new Set([model, ...list])]
 }
 
+/** USAGE_FILE, sonst <StateDirectory>/usage.json (systemd), sonst data/usage.json. */
+function usageFileOf(env: NodeJS.ProcessEnv): string {
+  const explicit = env.USAGE_FILE?.trim()
+  if (explicit) return explicit
+  const state = env.STATE_DIRECTORY?.split(':')[0]?.trim()
+  return state ? `${state.replace(/\/+$/, '')}/usage.json` : 'data/usage.json'
+}
+
 function parseAdminKey(raw: string | undefined, apiKey: string): string | null {
   const key = raw?.trim() ?? ''
   if (!key) return null
@@ -110,5 +120,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxAskChars: int(env, 'MAX_ASK_CHARS', 400_000, 1_000, 2_000_000),
     timeoutMs: int(env, 'TIMEOUT_MS', 180_000, 5_000, 600_000),
     adminKey: parseAdminKey(env.ANTHROPIC_ADMIN_KEY, apiKey),
+    usageFile: usageFileOf(env),
   }
 }

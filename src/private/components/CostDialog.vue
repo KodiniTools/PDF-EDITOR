@@ -107,18 +107,28 @@ onBeforeUnmount(() => {
         class="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-amber-900"
         data-testid="cost-setup"
       >
-        <p class="font-medium">Kostenrechner ist auf dem Server noch nicht eingerichtet.</p>
+        <p class="font-medium">Das Backend kennt den Kostenrechner noch nicht.</p>
         <p>
-          In der Anthropic Console unter Settings → Admin keys einen Admin-Key anlegen und auf dem
-          Server in <code>/etc/kodini/pdf-editor-privat-api.env</code> als
-          <code>ANTHROPIC_ADMIN_KEY=…</code> eintragen, dann den Dienst neu starten. Der Key bleibt
-          nur auf dem Server.
+          Bitte die aktuelle Version mit <code>deploy-privat.sh</code> auf den Server bringen.
+          Danach zählt der Server die Kosten jeder KI-Anfrage selbst mit.
         </p>
       </div>
 
       <template v-else>
-        <p class="mt-1 text-xs text-gray-500" data-testid="cost-status">
-          Anthropic liefert die Kosten 4–24 Stunden verzögert. Vollständig bis
+        <p
+          v-if="costs.report?.source === 'local'"
+          class="mt-2 rounded-md bg-blue-50 p-2 text-xs text-blue-900"
+          data-testid="cost-status"
+        >
+          <strong>Schätzung:</strong> gezählt werden nur KI-Anfragen dieses PDF-Editors (Tokens ×
+          Listenpreis), sofort aktuell. Andere Apps und Keys sowie Rabatte und Gutschriften sind
+          nicht enthalten; maßgeblich ist die Rechnung in der Anthropic Console.
+          <span v-if="costs.report.notice" class="mt-1 block text-blue-700">
+            {{ costs.report.notice }}
+          </span>
+        </p>
+        <p v-else class="mt-1 text-xs text-gray-500" data-testid="cost-status">
+          Kosten der ganzen Organisation laut Anthropic, 4–24 Stunden verzögert. Vollständig bis
           {{ fmtDateTime(costs.report?.refreshedAt) }}, geladen
           {{ fmtDateTime(costs.report?.fetchedAt) }}.
         </p>
@@ -131,7 +141,9 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="rounded-md bg-gray-50 p-2">
-            <div class="text-xs text-gray-500">Heute (UTC, unvollst.)</div>
+            <div class="text-xs text-gray-500">
+              Heute (UTC{{ costs.report?.source === 'local' ? '' : ', unvollst.' }})
+            </div>
             <div class="text-lg font-semibold tabular-nums">{{ formatUsd(costs.todayUsd) }}</div>
           </div>
           <div
@@ -179,11 +191,18 @@ onBeforeUnmount(() => {
             </span>
           </div>
           <p class="mt-1 text-xs text-gray-600">
-            Kosten seit {{ fmtDate(costs.settings.since) }}: {{ formatUsd(account.costs) }} ·
+            {{ costs.report?.source === 'local' ? 'Geschätzte Kosten' : 'Kosten' }} seit
+            {{ fmtDate(costs.settings.since) }}: {{ formatUsd(account.costs) }} ·
             Zahlungen/Aufladungen: {{ formatUsd(account.paid) }}
           </p>
           <p v-if="costs.truncated" class="mt-1 text-xs text-amber-700">
-            Anthropic liefert höchstens 364 Tage (ab 01.01.2026); ältere Kosten fehlen.
+            Kosten sind höchstens 364 Tage (ab 01.01.2026) verfügbar; ältere fehlen.
+          </p>
+          <p
+            v-if="costs.report?.source === 'local' && account.balance > 0"
+            class="mt-1 text-xs text-gray-500"
+          >
+            Guthaben ist nur eine Schätzung: Verbrauch anderer Apps mit demselben Konto fehlt.
           </p>
 
           <div class="mt-3 flex flex-wrap items-end gap-2">
@@ -294,8 +313,14 @@ onBeforeUnmount(() => {
           </div>
           <p class="mt-2 text-xs text-gray-500">
             Zahlungen, Budget und Kontobeginn werden nur in diesem Browser gespeichert; Anthropic
-            stellt Zahlungen und Guthaben nicht über die API bereit. Die Kosten gelten für die ganze
-            Organisation (alle API-Keys), nach Rabatten, vor Gutschriften.
+            stellt Zahlungen und Guthaben nicht über die API bereit.
+            <template v-if="costs.report?.source === 'local'">
+              Die eigene Zählung liegt auf dem Server und gilt für alle Browser.
+            </template>
+            <template v-else>
+              Die Kosten gelten für die ganze Organisation (alle API-Keys), nach Rabatten, vor
+              Gutschriften.
+            </template>
           </p>
         </details>
       </template>
