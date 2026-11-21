@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import PdfPageCanvas from '@/components/PdfPageCanvas.vue'
 import { HIGHLIGHT_OPACITY } from '@/services/pdfExport'
@@ -22,6 +22,13 @@ const CSS_FONTS: Record<FontFamily, string> = {
   mono: '"Courier New", Courier, monospace',
 }
 const SIGNATURE_WIDTH = 160
+/** Darstellung echter Schwärzungen im Editor: halbtransparent, damit man sieht, was entfernt wird. */
+const REDACT_PREVIEW = 'rgba(0, 0, 0, 0.6)'
+
+/** KI-Vorschläge auf der Seite – nur im privaten Build (fällt sonst beim Bauen weg). */
+const SuggestionOverlay = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/SuggestionOverlay.vue'))
+  : null
 
 const rotation = computed(() => normalizeRotation(props.page.baseRotation + props.page.rotation))
 const size = computed(() => displaySize(props.page.box, rotation.value))
@@ -36,7 +43,7 @@ const renderError = ref<string | null>(null)
 interface DragState {
   mode: 'move' | 'resize' | 'create'
   /** Bei mode 'create': welche Fläche entsteht. */
-  createKind?: 'highlight' | 'cover'
+  createKind?: 'highlight' | 'cover' | 'redact'
   pointerId: number
   startX: number
   startY: number
@@ -54,6 +61,7 @@ const cursor = computed(() => {
       return 'cursor-text'
     case 'highlight':
     case 'cover':
+    case 'redact':
     case 'signature':
       return 'cursor-crosshair'
     case 'select':
@@ -169,7 +177,8 @@ function onOverlayPointerDown(e: PointerEvent): void {
       return
     }
     case 'highlight':
-    case 'cover': {
+    case 'cover':
+    case 'redact': {
       overlay.value?.setPointerCapture(e.pointerId)
       drag.value = {
         mode: 'create',
@@ -275,6 +284,8 @@ function onPointerUp(e: PointerEvent): void {
     if (r.width >= MIN_SIZE && r.height >= MIN_SIZE) {
       if (d.createKind === 'cover') {
         store.addAnnotation(props.page.id, { kind: 'cover', color: store.coverColor, ...r })
+      } else if (d.createKind === 'redact') {
+        store.addAnnotation(props.page.id, { kind: 'cover', redact: true, color: '#000000', ...r })
       } else {
         store.addAnnotation(props.page.id, { kind: 'highlight', color: store.highlightColor, ...r })
       }
@@ -411,20 +422,23 @@ function px(v: number): string {
       </template>
 
       <template v-for="a in page.annotations" :key="a.id">
-        <!-- Abdeckung -->
+        <!-- Abdeckung / echte Schwärzung -->
         <div
           v-if="a.kind === 'cover'"
           class="absolute cursor-move"
           :class="{
             'outline-2 outline-blue-500 outline-dashed': store.selectedAnnotationId === a.id,
+            'outline-1 outline-red-600': a.redact && store.selectedAnnotationId !== a.id,
           }"
           :style="{
             left: px(a.x),
             top: px(a.y),
             width: px(a.width),
             height: px(a.height),
-            backgroundColor: a.color,
+            backgroundColor: a.redact ? REDACT_PREVIEW : a.color,
           }"
+          :title="a.redact ? 'Echte Schwärzung: Inhalt wird beim Export entfernt' : undefined"
+          :data-testid="a.redact ? 'redaction' : undefined"
           @pointerdown="onAnnotationPointerDown($event, a, 'move')"
         />
 
@@ -511,6 +525,8 @@ function px(v: number): string {
         />
       </template>
 
+      <component :is="SuggestionOverlay" v-if="SuggestionOverlay" :page="page" :zoom="zoom" />
+
       <div
         v-if="preview"
         class="pointer-events-none absolute border border-yellow-600"
@@ -519,8 +535,13 @@ function px(v: number): string {
           top: px(preview.y),
           width: px(preview.width),
           height: px(preview.height),
-          backgroundColor: drag?.createKind === 'cover' ? store.coverColor : store.highlightColor,
-          opacity: drag?.createKind === 'cover' ? 1 : HIGHLIGHT_OPACITY,
+          backgroundColor:
+            drag?.createKind === 'redact'
+              ? REDACT_PREVIEW
+              : drag?.createKind === 'cover'
+                ? store.coverColor
+                : store.highlightColor,
+          opacity: drag?.createKind === 'highlight' ? HIGHLIGHT_OPACITY : 1,
         }"
       />
 

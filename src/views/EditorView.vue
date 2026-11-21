@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import AppToolbar from '@/components/AppToolbar.vue'
 import PageEditor from '@/components/PageEditor.vue'
@@ -8,6 +8,12 @@ import SignatureDialog from '@/components/SignatureDialog.vue'
 import { downloadBytes } from '@/lib/file'
 import { useDocumentStore } from '@/stores/document'
 import type { Tool } from '@/types/pdf'
+
+/** KI-Schwärzung – nur im privaten Build (fällt sonst beim Bauen weg). */
+const RedactionPanel = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/RedactionPanel.vue'))
+  : null
+const isPrivate = __PRIVATE__
 
 const store = useDocumentStore()
 const showSignature = ref(false)
@@ -62,6 +68,7 @@ const shortcuts: Record<string, Tool> = {
   h: 'highlight',
   a: 'cover',
   s: 'signature',
+  ...(__PRIVATE__ ? { r: 'redact' as const } : {}),
 }
 
 function onKeyDown(e: KeyboardEvent): void {
@@ -174,8 +181,12 @@ onBeforeUnmount(() => {
           >
             <p class="text-lg font-medium">PDF hierher ziehen</p>
             <p class="mt-2 text-sm text-gray-500">
-              oder oben „PDF öffnen“ wählen. Mehrere Dateien werden zusammengeführt. Alles läuft
-              lokal im Browser, nichts wird hochgeladen.
+              oder oben „PDF öffnen“ wählen. Mehrere Dateien werden zusammengeführt.
+              <template v-if="isPrivate">
+                Die Datei bleibt im Browser; nur für KI-Vorschläge wird Seitentext an Claude
+                gesendet.
+              </template>
+              <template v-else>Alles läuft lokal im Browser, nichts wird hochgeladen.</template>
             </p>
             <p v-if="store.busy" class="mt-4 text-sm text-blue-600">Lade…</p>
           </div>
@@ -188,6 +199,8 @@ onBeforeUnmount(() => {
           Loslassen zum Hinzufügen
         </div>
       </main>
+
+      <component :is="RedactionPanel" v-if="RedactionPanel && store.hasDocument" />
     </div>
 
     <SignatureDialog v-if="showSignature" @save="onSignatureSaved" @cancel="onSignatureCancel" />

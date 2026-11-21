@@ -23,6 +23,19 @@ export interface RawTextItem {
   fontFamily?: string
 }
 
+/**
+ * Abschnitt einer Zeile, der aus genau einem pdf.js-Textelement stammt.
+ * Erlaubt, Teilstrings einer Zeile auf x-Positionen abzubilden.
+ */
+export interface TextSegment {
+  /** Zeichenindex in `TextLine.text` (inklusive); < 0, wenn führender Leerraum entfernt wurde. */
+  start: number
+  /** Zeichenindex in `TextLine.text` (exklusive); kann über das Zeilenende hinausgehen. */
+  end: number
+  x: number
+  width: number
+}
+
 export interface TextLine {
   /** Stabil über Drehungen hinweg (aus Benutzerraum-Koordinaten). */
   key: string
@@ -35,6 +48,8 @@ export interface TextLine {
   fontSize: number
   /** Nächstliegende Standardschrift für den Ersatztext. */
   font: FontFamily
+  /** Herkunft der Zeichen, aufsteigend nach `start`. */
+  segments: TextSegment[]
 }
 
 /** Ordnet eine pdf.js-Schriftfamilie einer PDF-Standardschrift zu. */
@@ -111,7 +126,14 @@ export function buildTextLines(
       if (sameLine && gap > -0.5 * fontSize && gap < 1.5 * fontSize) {
         const needsSpace =
           gap > 0.2 * fontSize && !current.text.endsWith(' ') && !str.startsWith(' ')
-        current.text += (needsSpace ? ' ' : '') + str
+        current.text += needsSpace ? ' ' : ''
+        current.segments.push({
+          start: current.text.length,
+          end: current.text.length + str.length,
+          x,
+          width,
+        })
+        current.text += str
         const right = Math.max(current.x + current.width, x + width)
         const bottom = Math.max(current.top + current.height, top + height)
         current.x = Math.min(current.x, x)
@@ -137,11 +159,24 @@ export function buildTextLines(
       baseline,
       fontSize,
       font: toFontFamily(item.fontFamily),
+      segments: [{ start: 0, end: str.length, x, width }],
     }
     lines.push(current)
   }
 
-  return lines
-    .map((l) => ({ ...l, text: l.text.trim() }))
-    .filter((l) => l.text !== '' && l.width > 0)
+  return lines.map(trimLine).filter((l) => l.text !== '' && l.width > 0)
+}
+
+/**
+ * Entfernt Leerraum an den Rändern und verschiebt die Segment-Indizes passend.
+ * Segmente behalten ihre volle Zeichenzahl (start darf < 0, end > text.length sein),
+ * damit die Breite pro Zeichen stimmt.
+ */
+function trimLine(line: TextLine): TextLine {
+  const text = line.text.trim()
+  const lead = line.text.length - line.text.trimStart().length
+  const segments = line.segments
+    .map((s) => ({ ...s, start: s.start - lead, end: s.end - lead }))
+    .filter((s) => s.end > 0 && s.start < text.length)
+  return { ...line, text, segments }
 }

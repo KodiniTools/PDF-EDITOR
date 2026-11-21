@@ -1,0 +1,266 @@
+import assert from 'node:assert/strict'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { after, before, describe, it } from 'node:test'
+
+import Anthropic from '@anthropic-ai/sdk'
+
+import { createHandler, toHttpError } from '../app.ts'
+import { ConfigError, DEFAULT_PORT, loadConfig } from '../config.ts'
+import {
+  buildParams,
+  sanitizeFindings,
+  SuggestError,
+  suggestRedactions,
+  type StreamFn,
+} from '../suggest.ts'
+import { parseSuggestRequest, ValidationError } from '../validate.ts'
+
+type BetaMessage = Anthropic.Beta.Messages.BetaMessage
+
+const REQ = {
+  pages: [
+    { page: 1, lines: ['Rechnung an', 'Max Mustermann', 'IBAN: DE89 3704 0044 0532 0130 00'] },
+    { page: 2, lines: ['Mit freundlichen Grüßen', 'Erika Musterfrau'] },
+  ],
+}
+
+function message(text: string, stop_reason: BetaMessage['stop_reason'] = 'end_turn'): BetaMessage {
+  return {
+    id: 'msg_test',
+    type: 'message',
+    role: 'assistant',
+    model: 'claude-opus-5-5',
+    content: [{ type: 'text', text, citations: null }],
+    stop_reason,
+    stop_sequence: null,
+    stop_details: null,
+    usage: {} as BetaMessage['usage'],
+  } as unknown as BetaMessage
+}
+
+function fakeStream(result: BetaMessage | Error, seen?: { params?: unknown }): StreamFn {
+  return (params) => {
+    if (seen) seen.params = params
+    return {
+      finalMessage: async () => {
+        if (result instanceof Error) throw result
+        return result
+      },
+    }
+  }
+}
+
+describe('loadConfig', () => {
+  it('verlangt einen API-Key', () => {
+    assert.throws(() => loadConfig({}), ConfigError)
+  })
+  it('setzt sichere Standardwerte', () => {
+    const c = loadConfig({ ANTHROPIC_API_KEY: 'sk-test' })
+    assert.equal(c.port, DEFAULT_PORT)
+    assert.equal(c.host, '127.0.0.1')
+    assert.equal(c.model, 'claude-opus-5-5')
+    assert.equal(c.effort, 'medium')
+  })
+  it('prüft Port und Effort', () => {
+    assert.throws(() => loadConfig({ ANTHROPIC_API_KEY: 'k', PORT: '80' }), /PORT/)
+    assert.throws(() => loadConfig({ ANTHROPIC_API_KEY: 'k', ANTHROPIC_EFFORT: 'turbo' }), /EFFORT/)
+    assert.equal(loadConfig({ ANTHROPIC_API_KEY: 'k', PORT: '3999' }).port, 3999)
+  })
+})
+
+describe('parseSuggestRequest', () => {
+  it('akzeptiert gültige Anfragen', () => {
+    assert.deepEqual(parseSuggestRequest(REQ, 10_000), REQ)
+  })
+  it('lehnt ungültige Formen ab', () => {
+    for (const bad of [
+      null,
+      {},
+      { pages: [] },
+      { pages: [{ page: 0, lines: [] }] },
+      { pages: [{ page: 1, lines: [1] }] },
+    ]) {
+      assert.throws(() => parseSuggestRequest(bad, 10_000), ValidationError)
+    }
+    assert.throws(
+      () =>
+        parseSuggestRequest(
+          {
+            pages: [
+              { page: 1, lines: [] },
+              { page: 1, lines: [] },
+            ],
+          },
+          10_000,
+        ),
+      /doppelt/,
+    )
+  })
+  it('begrenzt die Textmenge mit 413', () => {
+    assert.throws(
+      () => parseSuggestRequest(REQ, 20),
+      (err: unknown) => err instanceof ValidationError && err.status === 413,
+    )
+  })
+})
+
+describe('buildParams', () => {
+  it('nutzt Modell, Fallback, Effort und JSON-Schema', () => {
+    const p = buildParams(REQ, { model: 'claude-opus-5-5', effort: 'medium' })
+    assert.equal(p.model, 'claude-opus-5-5')
+    assert.equal(p.fallbacks, 'default')
+    assert.deepEqual(p.betas, ['server-side-fallback-2026-07-01'])
+    assert.equal(p.output_config?.effort, 'medium')
+    assert.equal(p.output_config?.format?.type, 'json_schema')
+    const content = p.messages[0]?.content
+    assert.ok(
+      typeof content === 'string' &&
+        content.includes('<page number="2">\nMit freundlichen Grüßen\nErika Musterfrau\n</page>'),
+    )
+  })
+})
+
+describe('sanitizeFindings', () => {
+  it('verwirft erfundene, doppelte und seitenfremde Treffer', () => {
+    const out = sanitizeFindings(
+      {
+        findings: [
+          { page: 1, text: 'Max Mustermann', category: 'name', reason: 'Name' },
+          { page: 1, text: 'max  mustermann', category: 'name', reason: 'doppelt' },
+          { page: 1, text: 'Erika Musterfrau', category: 'name', reason: 'falsche Seite' },
+          { page: 3, text: 'Max Mustermann', category: 'name', reason: 'unbekannte Seite' },
+          { page: 1, text: 'Hans Gibtsnicht', category: 'name', reason: 'erfunden' },
+          { page: 1, text: 'DE89 3704 0044 0532 0130 00', category: 'quatsch', reason: '' },
+          { page: 2, text: 'Erika Musterfrau', category: 'name' },
+        ],
+      },
+      REQ,
+    )
+    assert.deepEqual(
+      out.map((f) => [f.page, f.text, f.category]),
+      [
+        [1, 'Max Mustermann', 'name'],
+        [1, 'DE89 3704 0044 0532 0130 00', 'other'],
+        [2, 'Erika Musterfrau', 'name'],
+      ],
+    )
+  })
+  it('liefert bei unbrauchbarer Struktur eine leere Liste', () => {
+    assert.deepEqual(sanitizeFindings('x', REQ), [])
+    assert.deepEqual(sanitizeFindings({ findings: 'x' }, REQ), [])
+  })
+})
+
+describe('suggestRedactions', () => {
+  const opts = { model: 'm', effort: 'medium' as const, signal: new AbortController().signal }
+
+  it('liest das JSON aus dem Textblock', async () => {
+    const json = JSON.stringify({
+      findings: [{ page: 2, text: 'Erika Musterfrau', category: 'name', reason: 'Name' }],
+    })
+    const out = await suggestRedactions(fakeStream(message(json)), REQ, opts)
+    assert.deepEqual(out, [{ page: 2, text: 'Erika Musterfrau', category: 'name', reason: 'Name' }])
+  })
+  it('meldet Ablehnung und abgeschnittene Antworten', async () => {
+    await assert.rejects(
+      suggestRedactions(fakeStream(message('', 'refusal')), REQ, opts),
+      (e: unknown) => e instanceof SuggestError && e.status === 422,
+    )
+    await assert.rejects(
+      suggestRedactions(fakeStream(message('{"findings":[', 'max_tokens')), REQ, opts),
+      /zu lang/,
+    )
+    await assert.rejects(
+      suggestRedactions(fakeStream(message('kein json')), REQ, opts),
+      /nicht lesbar/,
+    )
+  })
+})
+
+describe('toHttpError', () => {
+  it('bildet SDK-Fehler auf Status ab', () => {
+    assert.equal(
+      toHttpError(new Anthropic.RateLimitError(429, undefined, 'x', new Headers()), false).status,
+      429,
+    )
+    assert.equal(toHttpError(new Anthropic.APIConnectionError({ message: 'x' }), false).status, 502)
+    assert.equal(
+      toHttpError(new Anthropic.AuthenticationError(401, undefined, 'x', new Headers()), false)
+        .status,
+      500,
+    )
+    assert.equal(toHttpError(new Error('x'), true).status, 504)
+    assert.equal(toHttpError(new Error('x'), false).status, 500)
+  })
+})
+
+describe('HTTP', () => {
+  let server: Server
+  let base: string
+  let next: BetaMessage | Error = message('{"findings":[]}')
+  const logs: string[] = []
+
+  before(async () => {
+    const handler = createHandler({
+      config: {
+        model: 'claude-opus-5-5',
+        effort: 'medium',
+        maxBodyBytes: 20_000,
+        maxChars: 10_000,
+        timeoutMs: 5_000,
+      },
+      stream: (params, options) => fakeStream(next)(params, options),
+      log: (l) => logs.push(l),
+    })
+    server = createServer((req, res) => void handler(req, res))
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+  after(() => new Promise<void>((r) => server.close(() => r())))
+
+  const post = (body: string, type = 'application/json') =>
+    fetch(`${base}/api/redaction-suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': type },
+      body,
+    })
+
+  it('GET /api/health', async () => {
+    const res = await fetch(`${base}/api/health`)
+    assert.equal(res.status, 200)
+    assert.deepEqual(await res.json(), { ok: true, model: 'claude-opus-5-5' })
+  })
+
+  it('liefert Vorschläge und loggt keinen Dokumentinhalt', async () => {
+    next = message(
+      JSON.stringify({
+        findings: [{ page: 1, text: 'Max Mustermann', category: 'name', reason: 'Name' }],
+      }),
+    )
+    const res = await post(JSON.stringify(REQ))
+    assert.equal(res.status, 200)
+    const body = (await res.json()) as { findings: { text: string }[] }
+    assert.equal(body.findings[0]?.text, 'Max Mustermann')
+    assert.ok(logs.some((l) => l.startsWith('suggest ok')))
+    assert.ok(!logs.join('\n').includes('Mustermann'))
+  })
+
+  it('validiert Methode, Content-Type, Größe und Inhalt', async () => {
+    assert.equal((await fetch(`${base}/api/redaction-suggestions`)).status, 405)
+    assert.equal((await post(JSON.stringify(REQ), 'text/plain')).status, 415)
+    assert.equal((await post('x'.repeat(30_000))).status, 413)
+    assert.equal((await post('{kaputt')).status, 400)
+    const res = await post(JSON.stringify({ pages: [] }))
+    assert.equal(res.status, 400)
+    assert.match(((await res.json()) as { error: string }).error, /Keine Seiten/)
+    assert.equal((await fetch(`${base}/api/anderes`)).status, 404)
+  })
+
+  it('reicht KI-Fehler als verständliche Meldung durch', async () => {
+    next = new Anthropic.RateLimitError(429, undefined, 'rate limited', new Headers())
+    const res = await post(JSON.stringify(REQ))
+    assert.equal(res.status, 429)
+    assert.match(((await res.json()) as { error: string }).error, /ausgelastet/)
+  })
+})

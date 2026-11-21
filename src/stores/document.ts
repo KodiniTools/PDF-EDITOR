@@ -309,6 +309,12 @@ export const useDocumentStore = defineStore('document', () => {
     busy.value = true
     error.value = null
     try {
+      if (__PRIVATE__) {
+        // Privater Build: echte Schwärzung (MuPDF, lazy geladen). Im öffentlichen
+        // Build entfällt dieser Zweig samt Import vollständig.
+        const { exportWithRedactions } = await import('@/private/redaction/exportRedacted')
+        return (await exportWithRedactions(sourceBytes, pages.value)).bytes
+      }
       return await exportPdf(sourceBytes, pages.value)
     } catch (err) {
       console.error('[pdf-editor] Export fehlgeschlagen', err)

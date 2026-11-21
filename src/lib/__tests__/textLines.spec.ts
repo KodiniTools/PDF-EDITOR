@@ -79,3 +79,24 @@ describe('toFontFamily', () => {
     expect(toFontFamily(input)).toBe(expected)
   })
 })
+
+describe('buildTextLines – Segmente', () => {
+  it('ordnet jedem Textelement seinen Zeichenbereich zu (Leerzeichen dazwischen ausgenommen)', () => {
+    const [line] = buildTextLines(
+      [item('Hallo', 50, 700, 12, 30), item('Welt', 84, 700, 12, 25)],
+      VT0,
+    )
+    expect(line!.text).toBe('Hallo Welt')
+    expect(line!.segments).toEqual([
+      { start: 0, end: 5, x: 50, width: 30 },
+      { start: 6, end: 10, x: 84, width: 25 },
+    ])
+  })
+
+  it('verschiebt Segmente beim Trimmen führender Leerzeichen', () => {
+    const [line] = buildTextLines([item('  Text ', 50, 700, 12, 40)], VT0)
+    expect(line!.text).toBe('Text')
+    // Volle Zeichenzahl des Elements bleibt erhalten (7 Zeichen auf 40 pt).
+    expect(line!.segments).toEqual([{ start: -2, end: 5, x: 50, width: 40 }])
+  })
+})

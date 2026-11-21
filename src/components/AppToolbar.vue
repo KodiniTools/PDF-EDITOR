@@ -11,6 +11,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useDocumentStore()
+const isPrivate = __PRIVATE__
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const tools: { id: Tool; label: string; hint: string }[] = [
@@ -23,6 +24,15 @@ const tools: { id: Tool; label: string; hint: string }[] = [
   { id: 'text', label: 'Text', hint: 'Klicken, um Text einzufügen (T)' },
   { id: 'highlight', label: 'Markieren', hint: 'Bereich aufziehen (H)' },
   { id: 'cover', label: 'Abdecken', hint: 'Bereich weiß/schwarz abdecken (A)' },
+  ...(__PRIVATE__
+    ? [
+        {
+          id: 'redact' as const,
+          label: 'Schwärzen',
+          hint: 'Bereich aufziehen: Inhalt wird beim Export dauerhaft entfernt (R)',
+        },
+      ]
+    : []),
   { id: 'signature', label: 'Signatur', hint: 'Klicken, um Signatur zu platzieren (S)' },
 ]
 
@@ -103,7 +113,9 @@ function chooseTool(id: Tool): void {
 
 <template>
   <header class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-3 py-2">
-    <h1 class="mr-2 font-semibold text-gray-800">PDF-Editor</h1>
+    <h1 class="mr-2 font-semibold text-gray-800">
+      PDF-Editor<span v-if="isPrivate" class="ml-1 text-xs font-normal text-red-700">privat</span>
+    </h1>
 
     <button
       type="button"
@@ -196,6 +208,13 @@ function chooseTool(id: Tool): void {
         <input v-model="store.coverColor" type="color" class="h-7 w-8" title="Abdeckfarbe" />
         <span class="text-xs text-amber-700">nur optisch</span>
       </div>
+      <span
+        v-if="store.tool === 'redact'"
+        class="text-xs text-red-700"
+        title="Text, Grafik, Bildpixel, Kommentare und Formularfelder unter der Fläche werden beim Export entfernt; Metadaten ebenfalls."
+      >
+        echt – wirkt beim Export
+      </span>
       <button
         v-if="store.tool === 'signature'"
         type="button"

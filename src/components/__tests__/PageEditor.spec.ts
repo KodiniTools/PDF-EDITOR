@@ -57,4 +57,31 @@ describe('PageEditor', () => {
     expect(store.pages[0]!.annotations).toHaveLength(0)
     wrapper.unmount()
   })
+
+  it('legt mit dem Schwärzen-Werkzeug eine echte Schwärzung an', async () => {
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+    proto.setPointerCapture ??= () => undefined
+    proto.releasePointerCapture ??= () => undefined
+    proto.hasPointerCapture ??= () => false
+    const { store, wrapper } = setup()
+    store.setTool('redact')
+    const overlay = wrapper.get('[data-testid="overlay"]')
+
+    await overlay.trigger('pointerdown', { button: 0, pointerId: 1, clientX: 10, clientY: 20 })
+    await overlay.trigger('pointermove', { pointerId: 1, clientX: 110, clientY: 40 })
+    await overlay.trigger('pointerup', { pointerId: 1, clientX: 110, clientY: 40 })
+
+    expect(store.pages[0]!.annotations).toHaveLength(1)
+    expect(store.pages[0]!.annotations[0]).toMatchObject({
+      kind: 'cover',
+      redact: true,
+      color: '#000000',
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 20,
+    })
+    expect(wrapper.find('[data-testid="redaction"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
 })
