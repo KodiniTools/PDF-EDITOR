@@ -1,4 +1,4 @@
-/** Prüfung des Request-Bodys von POST /api/redaction-suggestions. */
+/** Prüfung der Request-Bodys der API-Endpunkte. */
 
 export interface PageText {
   /** 1-basierte Seitennummer in der aktuellen Seitenliste des Editors. */
@@ -23,6 +23,11 @@ export class ValidationError extends Error {
 export const MAX_PAGES = 200
 export const MAX_LINES_PER_PAGE = 2_000
 export const MAX_LINE_LENGTH = 2_000
+
+/** Seiten mit Textzeilen prüfen (gemeinsam für Schwärzen und Fragen). */
+export function parsePages(body: unknown, maxChars: number): PageText[] {
+  return parseSuggestRequest(body, maxChars).pages
+}
 
 export function parseSuggestRequest(body: unknown, maxChars: number): SuggestRequest {
   if (
@@ -68,4 +73,49 @@ export function parseSuggestRequest(body: unknown, maxChars: number): SuggestReq
     throw new ValidationError(`Zu viel Text auf einmal (${chars} > ${maxChars} Zeichen).`, 413)
   }
   return { pages }
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface AskRequest {
+  pages: PageText[]
+  messages: ChatMessage[]
+}
+
+export const MAX_MESSAGES = 40
+export const MAX_MESSAGE_LENGTH = 4_000
+
+/**
+ * POST /api/ask: Dokumenttext + Gesprächsverlauf. Der Verlauf beginnt und endet mit
+ * einer Nutzerfrage, Rollen wechseln sich ab.
+ */
+export function parseAskRequest(body: unknown, maxChars: number): AskRequest {
+  const pages = parsePages(body, maxChars)
+  const raw = (body as { messages?: unknown }).messages
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_MESSAGES) {
+    throw new ValidationError(`"messages" muss 1 bis ${MAX_MESSAGES} Einträge haben.`)
+  }
+  const messages = raw.map((m, i): ChatMessage => {
+    const { role, content } = (m ?? {}) as { role?: unknown; content?: unknown }
+    const expected = i % 2 === 0 ? 'user' : 'assistant'
+    if (role !== expected) {
+      throw new ValidationError(`Nachricht ${i + 1}: Rolle "${expected}" erwartet.`)
+    }
+    if (typeof content !== 'string' || !content.trim()) {
+      throw new ValidationError(`Nachricht ${i + 1}: Text fehlt.`)
+    }
+    // Frühere Antworten dürfen länger sein als Fragen.
+    const limit = role === 'user' ? MAX_MESSAGE_LENGTH : MAX_MESSAGE_LENGTH * 4
+    if (content.length > limit) {
+      throw new ValidationError(`Nachricht ${i + 1}: höchstens ${limit} Zeichen.`)
+    }
+    return { role: expected, content }
+  })
+  if (messages[messages.length - 1]?.role !== 'user') {
+    throw new ValidationError('Die letzte Nachricht muss eine Frage sein.')
+  }
+  return { pages, messages }
 }

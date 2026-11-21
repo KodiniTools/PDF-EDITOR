@@ -50,14 +50,13 @@ function apply(): void {
 </script>
 
 <template>
-  <aside
-    class="flex w-72 shrink-0 flex-col border-l border-gray-200 bg-white text-sm"
+  <section
+    class="flex min-h-0 flex-1 flex-col"
     aria-label="KI-Schwärzung"
     data-testid="redaction-panel"
   >
     <div class="border-b border-gray-200 p-3">
-      <h2 class="font-semibold">KI-Schwärzung</h2>
-      <p class="mt-1 text-xs text-gray-500">
+      <p class="text-xs text-gray-500">
         Der Text der Seiten wird zur Analyse an Claude (Anthropic) gesendet. Vorschläge prüfen, dann
         übernehmen.
       </p>
@@ -165,7 +164,7 @@ function apply(): void {
         {{ redaction.selectedCount }} schwärzen
       </button>
     </div>
-  </aside>
+  </section>
 </template>
 
 <style scoped>

@@ -5,6 +5,7 @@ import { after, before, describe, it } from 'node:test'
 
 import Anthropic from '@anthropic-ai/sdk'
 
+import { askDocument, buildAskParams } from '../ask.ts'
 import { createHandler, toHttpError } from '../app.ts'
 import { ConfigError, DEFAULT_PORT, loadConfig } from '../config.ts'
 import {
@@ -14,7 +15,7 @@ import {
   suggestRedactions,
   type StreamFn,
 } from '../suggest.ts'
-import { parseSuggestRequest, ValidationError } from '../validate.ts'
+import { parseAskRequest, parseSuggestRequest, ValidationError } from '../validate.ts'
 
 type BetaMessage = Anthropic.Beta.Messages.BetaMessage
 
@@ -178,6 +179,77 @@ describe('suggestRedactions', () => {
   })
 })
 
+const ASK = {
+  ...REQ,
+  messages: [
+    { role: 'user', content: 'Wer ist der Empfänger?' },
+    { role: 'assistant', content: 'Max Mustermann (S. 1)' },
+    { role: 'user', content: 'Und der Absender?' },
+  ],
+}
+
+describe('parseAskRequest', () => {
+  it('akzeptiert einen Gesprächsverlauf', () => {
+    const r = parseAskRequest(ASK, 10_000)
+    assert.equal(r.messages.length, 3)
+    assert.equal(r.pages.length, 2)
+  })
+  it('verlangt abwechselnde Rollen, Frage am Ende und Text', () => {
+    const bad = [
+      { ...REQ, messages: [] },
+      { ...REQ, messages: [{ role: 'assistant', content: 'x' }] },
+      {
+        ...REQ,
+        messages: [
+          { role: 'user', content: 'a' },
+          { role: 'user', content: 'b' },
+        ],
+      },
+      {
+        ...REQ,
+        messages: [
+          { role: 'user', content: 'a' },
+          { role: 'assistant', content: 'b' },
+        ],
+      },
+      { ...REQ, messages: [{ role: 'user', content: '  ' }] },
+      { ...REQ, messages: [{ role: 'user', content: 'x'.repeat(4001) }] },
+      { ...REQ, messages: [{ role: 'system', content: 'x' }] },
+      { messages: [{ role: 'user', content: 'x' }] },
+    ]
+    for (const b of bad) assert.throws(() => parseAskRequest(b, 10_000), ValidationError)
+  })
+})
+
+describe('buildAskParams / askDocument', () => {
+  it('cacht den Dokumenttext im ersten Turn und hängt den Verlauf an', () => {
+    const p = buildAskParams(parseAskRequest(ASK, 10_000), {
+      model: 'claude-opus-5-5',
+      effort: 'medium',
+    })
+    assert.equal(p.model, 'claude-opus-5-5')
+    assert.equal(p.messages.length, 3)
+    const first = p.messages[0]?.content as {
+      type: string
+      text: string
+      cache_control?: unknown
+    }[]
+    assert.match(first[0]?.text ?? '', /<page number="1">/)
+    assert.deepEqual(first[0]?.cache_control, { type: 'ephemeral' })
+    assert.equal(first[1]?.text, 'Wer ist der Empfänger?')
+    assert.equal(first[1]?.cache_control, undefined)
+    assert.deepEqual(p.messages[2], { role: 'user', content: 'Und der Absender?' })
+  })
+  it('liefert die Antwort als Text', async () => {
+    const answer = await askDocument(
+      fakeStream(message('  Erika Musterfrau (S. 2)\n')),
+      parseAskRequest(ASK, 10_000),
+      { model: 'm', effort: 'medium', signal: new AbortController().signal },
+    )
+    assert.equal(answer, 'Erika Musterfrau (S. 2)')
+  })
+})
+
 describe('toHttpError', () => {
   it('bildet SDK-Fehler auf Status ab', () => {
     assert.equal(
@@ -208,6 +280,7 @@ describe('HTTP', () => {
         effort: 'medium',
         maxBodyBytes: 20_000,
         maxChars: 10_000,
+        maxAskChars: 10_000,
         timeoutMs: 5_000,
       },
       stream: (params, options) => fakeStream(next)(params, options),
@@ -255,6 +328,20 @@ describe('HTTP', () => {
     assert.equal(res.status, 400)
     assert.match(((await res.json()) as { error: string }).error, /Keine Seiten/)
     assert.equal((await fetch(`${base}/api/anderes`)).status, 404)
+  })
+
+  it('beantwortet Fragen über /api/ask', async () => {
+    next = message('Erika Musterfrau (S. 2)')
+    const res = await fetch(`${base}/api/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ASK),
+    })
+    assert.equal(res.status, 200)
+    assert.deepEqual(await res.json(), { answer: 'Erika Musterfrau (S. 2)' })
+    assert.ok(logs.some((l) => l.startsWith('ask ok') && l.includes('turns=3')))
+    assert.ok(!logs.join('\n').includes('Absender'))
+    assert.equal((await fetch(`${base}/api/ask`)).status, 405)
   })
 
   it('reicht KI-Fehler als verständliche Meldung durch', async () => {

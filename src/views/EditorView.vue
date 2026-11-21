@@ -9,9 +9,9 @@ import { downloadBytes } from '@/lib/file'
 import { useDocumentStore } from '@/stores/document'
 import type { Tool } from '@/types/pdf'
 
-/** KI-Schwärzung – nur im privaten Build (fällt sonst beim Bauen weg). */
-const RedactionPanel = __PRIVATE__
-  ? defineAsyncComponent(() => import('@/private/components/RedactionPanel.vue'))
+/** KI-Werkzeuge (Schwärzen, Fragen) – nur im privaten Build (fällt sonst beim Bauen weg). */
+const PrivatePanel = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/PrivatePanel.vue'))
   : null
 const isPrivate = __PRIVATE__
 
@@ -200,7 +200,7 @@ onBeforeUnmount(() => {
         </div>
       </main>
 
-      <component :is="RedactionPanel" v-if="RedactionPanel && store.hasDocument" />
+      <component :is="PrivatePanel" v-if="PrivatePanel && store.hasDocument" />
     </div>
 
     <SignatureDialog v-if="showSignature" @save="onSignatureSaved" @cancel="onSignatureCancel" />
