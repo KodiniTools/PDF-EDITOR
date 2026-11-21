@@ -16,6 +16,7 @@ const LINE: TextLine = {
   baseline: 100,
   fontSize: 12,
   font: 'sans',
+  segments: [],
 }
 
 vi.mock('@/services/pdfRenderer', () => ({

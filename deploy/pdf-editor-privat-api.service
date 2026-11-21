@@ -1,0 +1,49 @@
+# systemd-Unit fuer das Backend der privaten PDF-Editor-Variante.
+# Wird von deploy/deploy-privat.sh nach /etc/systemd/system/ installiert;
+# @NODE@ und @APP_DIR@ ersetzt das Skript. Nicht von Hand bearbeiten -- Aenderungen
+# hier im Repo machen und erneut deployen.
+#
+# Status/Logs:  systemctl status pdf-editor-privat-api
+#               journalctl -u pdf-editor-privat-api -f
+
+[Unit]
+Description=Kodini PDF-Editor privat - API (Proxy zur Anthropic API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Port, Modell, API-Key: nur in dieser Datei (root:root, 600), nie im Repo.
+EnvironmentFile=/etc/kodini/pdf-editor-privat-api.env
+WorkingDirectory=@APP_DIR@
+ExecStart=@NODE@ src/index.ts
+Restart=on-failure
+RestartSec=5
+# 78 = Konfigurationsfehler (z. B. API-Key fehlt, Port belegt): nicht endlos neu starten.
+RestartPreventExitStatus=78
+
+# --- Haertung: eigener, fluechtiger Benutzer, nur Lesezugriff aufs System ---
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+UMask=0077
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

@@ -47,4 +47,21 @@ describe('AppToolbar', () => {
     expect(store.tool).toBe('signature')
     expect(wrapper.emitted('editSignature')).toHaveLength(1)
   })
+
+  it('zeigt im öffentlichen Build kein Schwärzen-Werkzeug', () => {
+    const store = useDocumentStore()
+    store.pages.push({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 100, height: 100 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    const wrapper = mount(AppToolbar)
+    expect(wrapper.text()).toContain('Abdecken')
+    expect(wrapper.text()).not.toContain('Schwärzen')
+    expect(wrapper.text()).not.toContain('privat')
+  })
 })

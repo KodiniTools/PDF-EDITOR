@@ -56,13 +56,19 @@ export interface HighlightAnnotation extends AnnotationBase {
 
 /**
  * Deckende Fläche (Weiß-Abdeckung oder Schwärzung).
- * Achtung: verdeckt nur optisch, der darunterliegende Inhalt bleibt im PDF erhalten.
+ * Achtung: verdeckt nur optisch, der darunterliegende Inhalt bleibt im PDF erhalten –
+ * außer `redact` ist gesetzt und der private Build exportiert (echtes Schwärzen).
  */
 export interface CoverAnnotation extends AnnotationBase {
   kind: 'cover'
   width: number
   height: number
   color: string
+  /**
+   * Echte Schwärzung (nur privater Build): Inhalt unter der Fläche wird beim Export
+   * entfernt. Der öffentliche Build legt solche Flächen nie an.
+   */
+  redact?: boolean
 }
 
 export interface ImageAnnotation extends AnnotationBase {
@@ -91,7 +97,8 @@ export interface PageRef {
   annotations: Annotation[]
 }
 
-export type Tool = 'select' | 'edit-text' | 'text' | 'highlight' | 'cover' | 'signature'
+/** 'redact' gibt es nur im privaten Build (siehe AppToolbar). */
+export type Tool = 'select' | 'edit-text' | 'text' | 'highlight' | 'cover' | 'redact' | 'signature'
 
 /** Omit, das über Union-Mitglieder verteilt wird. */
 export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never

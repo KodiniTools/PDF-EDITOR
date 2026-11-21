@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:privat": "vite --mode private",
     "build": "run-p type-check \"build-only {@}\" --",
+    "build:privat": "run-p type-check \"build-only:privat {@}\" --",
     "preview": "vite preview",
     "test:unit": "vitest",
     "build-only": "vite build",
+    "build-only:privat": "vite build --mode private",
     "type-check": "vue-tsc --build",
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
@@ -17,6 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "mupdf": "1.28.6",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.7.284",
     "pinia": "^4.0.3",

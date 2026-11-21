@@ -130,6 +130,12 @@ main() {
     err "pdf.js-Worker fehlt in dist/assets/ -- PDFs liessen sich nicht anzeigen."
     return 1
   fi
+  # Die oeffentliche App darf keine AGPL-Bestandteile (MuPDF, nur privater Build) enthalten.
+  if grep -rqiE 'mupdf|libmupdf' dist/; then
+    err "dist/ enthaelt MuPDF (AGPL) -- das gehoert nur in den privaten Build."
+    err "Live-Verzeichnis wurde nicht angefasst."
+    return 1
+  fi
   log "Build ok: $(find dist -type f | wc -l) Dateien, Asset-Praefix ${BASE_PATH} stimmt."
 
   # --- 4. Ausliefern -------------------------------------------------------

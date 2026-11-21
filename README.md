@@ -8,7 +8,7 @@ Rein clientseitiger PDF-Editor: Dateien verlassen den Browser nicht.
 - Seiten anzeigen (pdf.js), Miniaturen lazy gerendert
 - Seiten **drehen**, **löschen**, **umsortieren** (Drag & Drop oder ↑/↓)
 - **Vorhandenen Text bearbeiten**: Textzeile anklicken → wird abgedeckt und als editierbarer Text (gleiche Position/Größe, passende Standardschrift) neu gesetzt
-- **Abdecken** (Weiß/Schwarz/Farbe) – nur optisch, der Inhalt darunter bleibt in der PDF auslesbar
+- **Abdecken** (Weiß/Schwarz/Farbe) – nur optisch, der Inhalt darunter bleibt in der PDF auslesbar (echtes Schwärzen: siehe private Variante)
 - Annotationen: **Text** (mehrzeilig, Größe/Farbe), **Markierung** (Rechteck, Farbe), **Signatur** (zeichnen oder PNG/JPEG hochladen)
 - Annotationen verschieben, Markierung/Signatur skalieren, mit Entf löschen
 - **Rückgängig/Wiederholen** mit 50 Schritten (Strg+Z, Strg+Y bzw. Strg+Umschalt+Z, Buttons ↶/↷); Ziehen und Tippen zählen je als ein Schritt
@@ -55,6 +55,68 @@ Jedes Update:
 
 Das Script prüft Node-Version, Asset-Präfix und dass der pdf.js-Worker (`.mjs`) als JavaScript ausgeliefert wird.
 
+## Private Variante (kodinitools.com/pdf-editor-privat)
+
+Gleicher Quellcode, eigener Build-Modus `private`. Nur für die Eigennutzung, hinter Basic Auth, nicht indexiert.
+
+Zusätzlich zur öffentlichen App:
+
+- **Echtes Schwärzen** (Werkzeug „Schwärzen“, Taste `R`): beim Export entfernt [MuPDF.js](https://mupdf.readthedocs.io/) Text, Vektorgrafik und Bildpixel unter den Flächen, löscht Kommentare, Links und Formularfelder (inkl. Feldwert) im Bereich, entfernt Metadaten (Info, XMP, PieceInfo, Vorschaubilder) und schreibt die Datei komplett neu. Danach wird geprüft, dass in den Flächen kein Text mehr extrahierbar ist, sonst bricht der Export ab. Im Editor sind Schwärzungen halbtransparent mit rotem Rand, im Export schwarz.
+- **KI-Schwärzungsvorschläge** (Seitenleiste „KI-Schwärzung“): der Seitentext (pdf.js) geht über das eigene Backend an Claude; gefundene Stellen (Namen, Adressen, IBAN, Telefon, E-Mail, Geburtsdaten, IDs …) werden auf der Seite markiert, per Klick an-/abgewählt und mit „n schwärzen“ als echte Schwärzungen übernommen (ein Undo-Schritt).
+
+MuPDF steht unter AGPL und landet **nur** im privaten Build: privater Code liegt in `src/private/` und wird nur hinter `__PRIVATE__` (Build-Konstante) dynamisch importiert. `deploy/deploy.sh` bricht ab, falls `dist/` doch MuPDF enthält.
+
+```bash
+pnpm dev:privat        # http://localhost:5173/pdf-editor-privat/ (API-Proxy auf 127.0.0.1:3417)
+pnpm build:privat      # -> dist-privat/
+cd server && pnpm install && ANTHROPIC_API_KEY=… pnpm dev   # Backend lokal (oder server/.env)
+cd server && pnpm test && pnpm type-check
+```
+
+### Backend (`server/`)
+
+Kleiner Node-Server ohne Framework (`node:http`, TypeScript direkt per Node-Type-Stripping, Node `^22.18` / `>=24.12`), einzige Abhängigkeit `@anthropic-ai/sdk`. Lauscht nur auf `127.0.0.1`; nginx übernimmt TLS und Zugriffsschutz.
+
+- `GET /api/health` → `{ ok, model }`
+- `POST /api/redaction-suggestions` mit `{ pages: [{ page, lines: [...] }] }` → `{ findings: [{ page, text, category, reason }] }`
+
+Der API-Key steht nur in `/etc/kodini/pdf-editor-privat-api.env` (Vorlage: `deploy/pdf-editor-privat-api.env.example`) und verlässt den Server nie. Modell: `claude-opus-5-5` (über `ANTHROPIC_MODEL` änderbar), strukturierte JSON-Ausgabe, automatischer Fallback bei Ablehnung. Das Backend verwirft Treffer, die nicht wörtlich im Seitentext stehen, und loggt keinen Dokumentinhalt. Größenlimits: 1 MB Body, 60 000 Zeichen pro Anfrage (das Frontend teilt längere Dokumente auf), höchstens 2 Analysen gleichzeitig.
+
+### Einrichtung auf dem VPS (einmalig)
+
+```bash
+# 1. Freien Port prüfen (Standard 3417). Keine Ausgabe = frei.
+sudo ss -tlnp | grep -w 3417
+
+# 2. Eigener Checkout für die private Variante
+git clone https://github.com/KodiniTools/PDF-EDITOR.git /opt/kodini-build/pdf-editor-privat
+chmod +x /opt/kodini-build/pdf-editor-privat/deploy/deploy-privat.sh
+
+# 3. Konfiguration mit API-Key (Port ggf. anpassen)
+sudo install -d -m 755 /etc/kodini
+sudo install -m 600 -o root -g root /opt/kodini-build/pdf-editor-privat/deploy/pdf-editor-privat-api.env.example /etc/kodini/pdf-editor-privat-api.env
+sudo nano /etc/kodini/pdf-editor-privat-api.env
+
+# 4. Zugangsdaten für Basic Auth (apache2-utils)
+sudo htpasswd -c -B /etc/nginx/.htpasswd-pdf-editor-privat kodini
+
+# 5. Block aus deploy/nginx-pdf-editor-privat.conf in den server{}-Block von
+#    /etc/nginx/sites-enabled/kodinitools.com einfügen (Port in proxy_pass = PORT aus Schritt 3)
+sudo nginx -t && sudo systemctl reload nginx
+
+# 6. Deployen (installiert auch den systemd-Service pdf-editor-privat-api)
+/opt/kodini-build/pdf-editor-privat/deploy/deploy-privat.sh -n   # Probelauf
+/opt/kodini-build/pdf-editor-privat/deploy/deploy-privat.sh
+```
+
+Ist 3417 belegt: anderen Port wählen (z. B. `sudo ss -tlnp | grep -w 3427`), in der env-Datei `PORT=` und im nginx-Block `proxy_pass` ändern. `deploy-privat.sh` warnt, wenn beide nicht zusammenpassen.
+
+Das Skript prüft Node-Version, env-Datei, API-Key, Port, htpasswd, baut und testet Frontend und Backend, installiert das Backend nach `/opt/kodini-apps/pdf-editor-privat-api/` (mit Rollback, falls `/api/health` nicht antwortet), schwenkt das Frontend atomar nach `/var/www/kodinitools.com/pdf-editor-privat/` und prüft zum Schluss, dass die Seite ohne Login **401** liefert. Mit `CHECK_AUTH=kodini:passwort` prüft es zusätzlich API und WASM-MIME-Typ über nginx.
+
+Betrieb: `systemctl status pdf-editor-privat-api`, Logs: `journalctl -u pdf-editor-privat-api -f`. Der Dienst läuft mit `DynamicUser` und Härtung; Node muss systemweit installiert sein (nicht unter `/root` oder `/home`, z. B. nvm).
+
+Grenzen: Gescannte Seiten ohne Textebene bekommen keine KI-Vorschläge (manuell schwärzen). Die Position innerhalb eines Textelements wird über Zeichenbreiten geschätzt; die Flächen sind leicht großzügig und können ein angrenzendes Satzzeichen mit entfernen. Ein Formularfeld mit mehreren Widgets verliert beim Schwärzen eines Widgets seinen Wert insgesamt.
+
 ## Architektur
 
 ```
@@ -67,6 +129,9 @@ src/
   lib/undoHistory.ts       Snapshot-Verlauf (Undo/Redo, Bündelung, Limit)
   components/              Toolbar, Sidebar/Miniaturen, PageEditor (Overlay), SignatureDialog
   views/EditorView.vue     Layout, Datei-Drop, Tastaturkürzel, Download
+  private/                 nur privater Build: MuPDF-Schwärzung, KI-Vorschläge (Store, Panel, Overlay)
+server/                    Backend der privaten Variante (Proxy zur Anthropic API)
+deploy/                    nginx-Blöcke, deploy.sh (öffentlich), deploy-privat.sh + systemd-Unit (privat)
 ```
 
 - Die Seitenliste ist die Single Source of Truth: jede Seite verweist auf `sourceId + sourceIndex`; Löschen/Sortieren ändert nur die Liste, die Originalbytes bleiben unverändert.

@@ -201,6 +201,7 @@ describe('document store', () => {
       baseline: 29,
       fontSize: 12.2,
       font: 'serif' as const,
+      segments: [],
     }
     const id = store.replaceTextLine(page.id, line)
     expect(store.replaceTextLine(page.id, line)).toBe(id) // kein Duplikat
