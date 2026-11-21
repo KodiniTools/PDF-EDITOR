@@ -23,7 +23,9 @@ const CSS_FONTS: Record<FontFamily, string> = {
 }
 const SIGNATURE_WIDTH = 160
 /** Darstellung echter Schwärzungen im Editor: halbtransparent, damit man sieht, was entfernt wird. */
-const REDACT_PREVIEW = 'rgba(0, 0, 0, 0.6)'
+function redactPreview(color: string): string {
+  return `color-mix(in srgb, ${color} 60%, transparent)`
+}
 
 /** KI-Vorschläge auf der Seite – nur im privaten Build (fällt sonst beim Bauen weg). */
 const SuggestionOverlay = __PRIVATE__
@@ -300,7 +302,12 @@ function onPointerUp(e: PointerEvent): void {
       if (d.createKind === 'cover') {
         store.addAnnotation(props.page.id, { kind: 'cover', color: store.coverColor, ...r })
       } else if (d.createKind === 'redact') {
-        store.addAnnotation(props.page.id, { kind: 'cover', redact: true, color: '#000000', ...r })
+        store.addAnnotation(props.page.id, {
+          kind: 'cover',
+          redact: true,
+          color: store.redactColor,
+          ...r,
+        })
       } else {
         store.addAnnotation(props.page.id, { kind: 'highlight', color: store.highlightColor, ...r })
       }
@@ -365,6 +372,14 @@ watch(
     }
   },
   { immediate: true },
+)
+
+/** Abdeckungen ersetzter Zeilen („Text bearbeiten“): deckend, ohne Schwärzungsrahmen. */
+const textCovers = computed(
+  () =>
+    new Set(
+      props.page.annotations.flatMap((a) => (a.kind === 'text' && a.coverId ? [a.coverId] : [])),
+    ),
 )
 
 /** Zeilen, die noch nicht ersetzt wurden. */
@@ -443,17 +458,24 @@ function px(v: number): string {
           class="absolute cursor-move"
           :class="{
             'outline-2 outline-blue-500 outline-dashed': store.selectedAnnotationId === a.id,
-            'outline-1 outline-red-600': a.redact && store.selectedAnnotationId !== a.id,
+            'outline-1 outline-red-600':
+              a.redact && !textCovers.has(a.id) && store.selectedAnnotationId !== a.id,
           }"
           :style="{
             left: px(a.x),
             top: px(a.y),
             width: px(a.width),
             height: px(a.height),
-            backgroundColor: a.redact ? REDACT_PREVIEW : a.color,
+            backgroundColor: a.redact && !textCovers.has(a.id) ? redactPreview(a.color) : a.color,
           }"
-          :title="a.redact ? 'Echte Schwärzung: Inhalt wird beim Export entfernt' : undefined"
-          :data-testid="a.redact ? 'redaction' : undefined"
+          :title="
+            a.redact
+              ? textCovers.has(a.id)
+                ? 'Ersetzte Zeile: wird beim Export echt entfernt'
+                : 'Echte Schwärzung: Inhalt wird beim Export entfernt'
+              : undefined
+          "
+          :data-testid="a.redact && !textCovers.has(a.id) ? 'redaction' : undefined"
           @pointerdown="onAnnotationPointerDown($event, a, 'move')"
         />
 
@@ -560,7 +582,7 @@ function px(v: number): string {
           height: px(preview.height),
           backgroundColor:
             drag?.createKind === 'redact'
-              ? REDACT_PREVIEW
+              ? redactPreview(store.redactColor)
               : drag?.createKind === 'cover'
                 ? store.coverColor
                 : store.highlightColor,

@@ -261,7 +261,7 @@ export const useRedactionStore = defineStore('redaction', () => {
       for (const r of s.rects) {
         const id = doc.addAnnotation(
           s.pageId,
-          { kind: 'cover', redact: true, color: '#000000', ...r },
+          { kind: 'cover', redact: true, color: doc.redactColor, ...r },
           group,
         )
         if (id) count++
