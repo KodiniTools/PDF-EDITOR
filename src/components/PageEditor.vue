@@ -45,6 +45,12 @@ const size = computed(() => displaySize(props.page.box, rotation.value))
 const zoom = computed(() => store.zoom)
 
 const overlay = ref<HTMLElement | null>(null)
+
+/** Position des Löschen-Knopfs: Flächen/Bilder rechts oben, Text links neben der ersten Zeile. */
+function deleteHandleStyle(a: Annotation): Record<string, string> {
+  if (a.kind === 'text') return { left: `calc(${px(a.x)} - 24px)`, top: px(a.y) }
+  return { left: `calc(${px(a.x + a.width)} - 10px)`, top: `calc(${px(a.y)} - 10px)` }
+}
 const editingId = ref<string | null>(null)
 /** Undo-Gruppe der laufenden Textbearbeitung (Tippen = ein Schritt). */
 let editGroup: string | null = null
@@ -509,7 +515,7 @@ function px(v: number): string {
         >
           <img
             :src="a.dataUrl"
-            alt="Signatur"
+            alt="Bild"
             class="pointer-events-none h-full w-full"
             draggable="false"
           />
@@ -548,6 +554,21 @@ function px(v: number): string {
           />
           <span v-else class="block whitespace-pre">{{ a.text }}</span>
         </div>
+
+        <!-- Löschen-Knopf an der ausgewählten Annotation -->
+        <button
+          v-if="store.selectedAnnotationId === a.id && editingId !== a.id"
+          type="button"
+          class="absolute z-10 grid h-5 w-5 place-items-center rounded-full border border-white bg-red-600 text-xs leading-none text-white shadow hover:bg-red-700"
+          :style="deleteHandleStyle(a)"
+          title="Löschen (Entf)"
+          aria-label="Auswahl löschen"
+          data-testid="annotation-delete"
+          @pointerdown.stop
+          @click.stop="store.removeAnnotation(page.id, a.id)"
+        >
+          ✕
+        </button>
 
         <!-- Resize-Griff -->
         <div
