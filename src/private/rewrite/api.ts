@@ -3,7 +3,7 @@ import { postJson, SuggestApiError } from '../suggestions/api'
 
 export type RewriteMode = 'correct' | 'shorter' | 'formal' | 'simple' | 'translate'
 /** Muss zu REWRITE_LANGUAGES in server/src/validate.ts passen. */
-export type RewriteLanguage = 'de' | 'en' | 'fr' | 'es' | 'it' | 'nl' | 'pt'
+export type RewriteLanguage = 'de' | 'en' | 'hr' | 'bs' | 'it' | 'es' | 'fr' | 'nl' | 'pt'
 
 export const MODE_LABELS: Record<Exclude<RewriteMode, 'translate'>, string> = {
   correct: 'Korrigieren',
@@ -15,9 +15,11 @@ export const MODE_LABELS: Record<Exclude<RewriteMode, 'translate'>, string> = {
 export const LANGUAGE_LABELS: Record<RewriteLanguage, string> = {
   de: 'Deutsch',
   en: 'Englisch',
-  fr: 'Französisch',
-  es: 'Spanisch',
+  hr: 'Kroatisch',
+  bs: 'Bosnisch',
   it: 'Italienisch',
+  es: 'Spanisch',
+  fr: 'Französisch',
   nl: 'Niederländisch',
   pt: 'Portugiesisch',
 }

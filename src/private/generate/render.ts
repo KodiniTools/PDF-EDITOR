@@ -8,6 +8,8 @@ import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf
 
 import { sanitizeForFont } from '@/services/pdfExport'
 
+import { inUnicodeFont, isWinAnsi } from '../rewrite/winAnsi'
+
 import {
   pageSize,
   type Block,
@@ -96,8 +98,17 @@ interface Ctx {
 const stripControls = (s: string) =>
   [...s].filter((ch) => ch === '\n' || ch.charCodeAt(0) >= 0x20).join('')
 
+/** Eingebettete Unicode-Schriften (DejaVu); andere Zeichen werden zu „?“. */
+const unicodeFonts = new WeakSet<PDFFont>()
+
 function clean(text: string, font: PDFFont): string {
-  return sanitizeForFont(stripControls(text.replace(/\t/g, '    ')), font)
+  const plain = stripControls(text.replace(/\t/g, '    '))
+  if (unicodeFonts.has(font)) {
+    return [...plain]
+      .map((ch) => (ch === '\n' || inUnicodeFont(ch.codePointAt(0) ?? 0) ? ch : '?'))
+      .join('')
+  }
+  return sanitizeForFont(plain, font)
 }
 
 function newPage(ctx: Ctx): void {
@@ -322,6 +333,40 @@ function renderBlock(ctx: Ctx, block: Block, index: number, blocks: readonly Blo
   }
 }
 
+/** Alle Texte des Dokuments (für die Wahl der Schrift). */
+function allText(content: GeneratedDocument): string {
+  return content.blocks
+    .map((b) => {
+      if ('text' in b) return b.text
+      if ('items' in b) return b.items.join('\n')
+      if ('rows' in b) return b.rows.flat().join('\n')
+      return ''
+    })
+    .join('\n')
+}
+
+/**
+ * Helvetica, solange alles in WinAnsi passt (kleinste PDFs); sonst z. B. bei
+ * Kroatisch/Bosnisch (č, ć, đ) die eingebettete Unicode-Schrift.
+ */
+async function embedFonts(
+  doc: PDFDocument,
+  content: GeneratedDocument,
+): Promise<{ regular: PDFFont; bold: PDFFont }> {
+  if (isWinAnsi(allText(content))) {
+    return {
+      regular: await doc.embedFont(StandardFonts.Helvetica),
+      bold: await doc.embedFont(StandardFonts.HelveticaBold),
+    }
+  }
+  const { embedUnicodeFont } = await import('../fonts/unicode')
+  const regular = await embedUnicodeFont(doc, 'sans')
+  const bold = await embedUnicodeFont(doc, 'sans-bold')
+  unicodeFonts.add(regular)
+  unicodeFonts.add(bold)
+  return { regular, bold }
+}
+
 /** Setzt das von Claude gelieferte Dokument im gewählten Format. */
 export async function renderDocument(
   content: GeneratedDocument,
@@ -335,8 +380,7 @@ export async function renderDocument(
   const ctx: Ctx = {
     doc,
     page: doc.addPage(size),
-    regular: await doc.embedFont(StandardFonts.Helvetica),
-    bold: await doc.embedFont(StandardFonts.HelveticaBold),
+    ...(await embedFonts(doc, content)),
     size,
     margin: Math.round(short * 0.095),
     base: opts.format === 'A5' ? 9.5 : opts.format === 'A3' ? 12 : 10.5,

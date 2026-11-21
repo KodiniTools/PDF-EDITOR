@@ -23,9 +23,10 @@ vi.mock('@/private/rewrite/api', async (orig) => ({
 }))
 
 describe('unsupportedChars', () => {
-  it('erkennt Zeichen außerhalb von WinAnsi', () => {
+  it('erkennt Zeichen, die weder WinAnsi noch die Unicode-Schrift kennt', () => {
     expect(unsupportedChars('Grüße „Test“ – 5 € ß\nÀ')).toEqual([])
-    expect(unsupportedChars('Łódź 😀 ğ ğ')).toEqual(['Ł', 'ź', '😀', 'ğ'])
+    expect(unsupportedChars('Čačak, Đakovo, ćevapi, Łódź, ğ')).toEqual([])
+    expect(unsupportedChars('😀 Жд 😀')).toEqual(['😀', 'Ж', 'д'])
   })
 })
 
@@ -56,6 +57,7 @@ describe('TextAssist', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     rewrite.mockReset()
+    localStorage.clear()
   })
 
   function setup(extra: Partial<TextAnnotation> = {}) {
@@ -108,15 +110,39 @@ describe('TextAssist', () => {
   it('übersetzt ersetzte PDF-Zeilen einzeilig in die gewählte Sprache', async () => {
     const { wrapper } = setup({ replacesKey: 'line-1' })
     rewrite.mockResolvedValueOnce('Bonjour')
-    await wrapper.get('select').setValue('fr')
+    await wrapper.get('[data-testid="assist-language"]').trigger('click')
+    await wrapper.get('[data-testid="assist-language-hr"]').trigger('click')
+    expect(wrapper.find('[data-testid="assist-language-de"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="assist-language"]').text()).toContain('Kroatisch')
+    expect(localStorage.getItem('pdf-editor-privat:zielsprache')).toBe('hr')
     await wrapper.get('[data-testid="assist-translate"]').trigger('click')
     await flushPromises()
     expect(rewrite.mock.calls[0]![0]).toEqual({
       text: 'hallo welt',
       mode: 'translate',
-      language: 'fr',
+      language: 'hr',
       singleLine: true,
     })
+  })
+
+  it('bietet alle Zielsprachen an und hält den Fokus im Textfeld', async () => {
+    const { wrapper } = setup()
+    const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+    wrapper.get('[data-testid="assist-language"]').element.dispatchEvent(down)
+    expect(down.defaultPrevented).toBe(true)
+    await wrapper.get('[data-testid="assist-language"]').trigger('click')
+    const labels = wrapper.findAll('[role="option"]').map((o) => o.text())
+    expect(labels).toEqual([
+      'Deutsch',
+      'Englisch',
+      'Kroatisch',
+      'Bosnisch',
+      'Italienisch',
+      'Spanisch',
+      'Französisch',
+      'Niederländisch',
+      'Portugiesisch',
+    ])
   })
 
   it('zeigt Fehler und warnt vor nicht darstellbaren Zeichen', async () => {
@@ -126,9 +152,9 @@ describe('TextAssist', () => {
     await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toMatch(/ausgelastet/)
 
-    rewrite.mockResolvedValueOnce('Łukasz')
+    rewrite.mockResolvedValueOnce('Đakovo 😀')
     await wrapper.get('[data-testid="assist-shorter"]').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toMatch(/wird im Export zu „\?“: Ł/)
+    expect(wrapper.text()).toMatch(/wird im Export zu „\?“: 😀/)
   })
 })

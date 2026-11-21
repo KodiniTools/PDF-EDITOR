@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { PDFDocument, StandardFonts } from 'pdf-lib'
+import { PDFDict, PDFDocument, PDFName, StandardFonts } from 'pdf-lib'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -261,5 +261,72 @@ describe('Neues Dokument (Store und Dialog)', () => {
     expect(file.name).toBe('Protokoll.pdf')
     const pdf = await PDFDocument.load(await file.arrayBuffer())
     expect(Math.round(pdf.getPage(0).getSize().width)).toBe(595)
+  })
+})
+
+/** Namen aller eingebetteten Schriften (BaseFont). */
+async function fontNames(bytes: Uint8Array): Promise<string[]> {
+  const pdf = await PDFDocument.load(bytes)
+  const names: string[] = []
+  for (const [, obj] of pdf.context.enumerateIndirectObjects()) {
+    if (obj instanceof PDFDict && obj.get(PDFName.of('Type')) === PDFName.of('Font')) {
+      names.push(String(obj.get(PDFName.of('BaseFont'))))
+    }
+  }
+  return names
+}
+
+describe('Unicode-Schrift (Kroatisch, Bosnisch)', () => {
+  it('neues Dokument: č, ć, đ bleiben erhalten (eingebettete Schrift)', async () => {
+    const bytes = await renderDocument(
+      {
+        title: 'Račun',
+        blocks: [
+          { type: 'heading', level: 1, text: 'Račun – Đakovo' },
+          { type: 'paragraph', text: 'Ćevapčići i šljivovica 😀' },
+          {
+            type: 'table',
+            header: true,
+            rows: [
+              ['Količina', 'Cijena'],
+              ['1', '5 €'],
+            ],
+          },
+        ],
+      },
+      { format: 'A4', orientation: 'portrait' },
+    )
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1)
+    const names = (await fontNames(bytes)).join(' ')
+    expect(names).toMatch(/DejaVuSans/)
+    expect(names).not.toMatch(/Helvetica/)
+  })
+
+  it('Export: Textfeld mit č nutzt die Unicode-Schrift, sonst Standardschrift', async () => {
+    const { exportPdf } = await import('@/services/pdfExport')
+    const { embedUnicodeFont } = await import('@/private/fonts/unicode')
+    const src = await PDFDocument.create()
+    src.addPage([200, 200])
+    const sources = new Map([['s', await src.save()]])
+    const page = (text: string) => ({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 200, height: 200 },
+      baseRotation: 0 as const,
+      rotation: 0 as const,
+      annotations: [
+        { id: 'a', kind: 'text' as const, x: 10, y: 10, text, fontSize: 12, color: '#000000' },
+      ],
+    })
+    const opts = { unicodeFont: embedUnicodeFont }
+    const withC = (await fontNames(await exportPdf(sources, [page('Čačak')], opts))).join(' ')
+    expect(withC).toMatch(/DejaVuSans/)
+    const plain = (await fontNames(await exportPdf(sources, [page('Grüße')], opts))).join(' ')
+    expect(plain).not.toMatch(/DejaVu/)
+    expect(plain).toMatch(/Helvetica/)
+    // Ohne Option (öffentlicher Build): Standardschrift, keine Einbettung.
+    const pub = (await fontNames(await exportPdf(sources, [page('Čačak')]))).join(' ')
+    expect(pub).toMatch(/Helvetica/)
   })
 })

@@ -124,7 +124,7 @@ export const REWRITE_MODES = ['correct', 'shorter', 'formal', 'simple', 'transla
 export type RewriteMode = (typeof REWRITE_MODES)[number]
 
 /** Zielsprachen, deren Zeichen die PDF-Standardschriften (WinAnsi) darstellen können. */
-export const REWRITE_LANGUAGES = ['de', 'en', 'fr', 'es', 'it', 'nl', 'pt'] as const
+export const REWRITE_LANGUAGES = ['de', 'en', 'hr', 'bs', 'it', 'es', 'fr', 'nl', 'pt'] as const
 export type RewriteLanguage = (typeof REWRITE_LANGUAGES)[number]
 
 export interface RewriteRequest {
