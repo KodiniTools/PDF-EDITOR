@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { looksLikePdf, readFileBytes } from '@/lib/file'
-import { placeOnPage, type LoadedImage } from '@/lib/image'
+import { placeOnPage, readImageFile, type LoadedImage } from '@/lib/image'
+import { imageToPdf, imageTypeOf, looksLikeImage, SCAN_MAX_SIDE } from '@/lib/imagePdf'
 import {
   displaySize,
   normalizeRotation,
@@ -39,6 +40,7 @@ export interface AddFilesResult {
 
 function messageOf(err: unknown): string {
   if (err instanceof PdfEditorError) return err.message
+  if (err instanceof Error && err.name === 'ImageError') return err.message
   return 'Unbekannter Fehler beim Verarbeiten der Datei.'
 }
 
@@ -82,7 +84,7 @@ export const useDocumentStore = defineStore('document', () => {
     // Nur Quellen, die aktuell verwendet werden (nicht nur im Undo-Verlauf).
     const used = new Set(pages.value.map((p) => p.sourceId))
     const active = sources.value.filter((s) => used.has(s.id))
-    const first = active[0]?.name.replace(/\.pdf$/i, '') ?? 'dokument'
+    const first = active[0]?.name.replace(/\.(pdf|jpe?g|png|webp|gif)$/i, '') ?? 'dokument'
     return `${first}${active.length > 1 ? '-zusammengefuehrt' : '-bearbeitet'}.pdf`
   })
 
@@ -154,8 +156,16 @@ export const useDocumentStore = defineStore('document', () => {
           if (file.size > MAX_FILE_BYTES) {
             throw new PdfEditorError('Datei ist zu groß (max. 100 MB).')
           }
-          const bytes = await readFileBytes(file)
-          if (!looksLikePdf(bytes)) throw new PdfEditorError('Keine PDF-Datei.')
+          let bytes = await readFileBytes(file)
+          if (!looksLikePdf(bytes)) {
+            // Scan/Foto: als A4-Seite übernehmen.
+            const type = imageTypeOf(file)
+            if (!looksLikeImage(type, bytes)) {
+              throw new PdfEditorError('Keine PDF- oder Bilddatei.')
+            }
+            const typed = file.type ? file : new File([bytes as BlobPart], label, { type })
+            bytes = await imageToPdf(await readImageFile(typed, SCAN_MAX_SIDE))
+          }
           await validatePdf(bytes)
 
           const id = createId('src')

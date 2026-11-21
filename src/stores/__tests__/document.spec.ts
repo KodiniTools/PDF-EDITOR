@@ -18,6 +18,17 @@ vi.mock('@/services/pdfRenderer', () => ({
   getTextLines: async () => [],
 }))
 
+vi.mock('@/lib/image', async (orig) => ({
+  ...(await orig<typeof import('@/lib/image')>()),
+  // jsdom kann keine Bilder dekodieren: festes 1×1-PNG mit Scan-Maßen.
+  readImageFile: async () => ({
+    dataUrl:
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC',
+    width: 2480,
+    height: 3508,
+  }),
+}))
+
 async function pdfFile(name: string, pageCount: number): Promise<File> {
   const doc = await PDFDocument.create()
   for (let i = 0; i < pageCount; i++) doc.addPage([100 + i, 200])
@@ -45,7 +56,7 @@ describe('document store', () => {
     const bad = new File(['hallo'], 'x.pdf', { type: 'application/pdf' })
     const res = await store.addFiles([bad, await pdfFile('ok.pdf', 1)])
     expect(res.added).toBe(1)
-    expect(res.errors).toEqual(['x.pdf: Keine PDF-Datei.'])
+    expect(res.errors).toEqual(['x.pdf: Keine PDF- oder Bilddatei.'])
     expect(store.error).toContain('x.pdf')
     expect(store.busy).toBe(false)
   })
@@ -272,5 +283,16 @@ describe('document store', () => {
     await expect(store.exportDocument([])).rejects.toThrow(/keine Seiten/)
     await store.reset()
     expect(store.markedPageIds).toEqual([])
+  })
+
+  it('übernimmt Scans/Fotos als A4-Seite', async () => {
+    const store = useDocumentStore()
+    const jpeg = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0])], 'scan.jpg', {
+      type: 'image/jpeg',
+    })
+    const res = await store.addFiles([jpeg])
+    expect(res).toEqual({ added: 1, errors: [] })
+    expect(Math.round(store.pages[0]!.box.width)).toBe(595)
+    expect(store.suggestedFileName).toBe('scan-bearbeitet.pdf')
   })
 })
