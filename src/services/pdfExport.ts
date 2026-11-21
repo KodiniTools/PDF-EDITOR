@@ -84,7 +84,19 @@ interface DrawContext {
   doc: PDFDocument
   /** Lädt eine Standardschrift bei Bedarf und bettet sie nur einmal ein. */
   font: (family: FontFamily) => Promise<PDFFont>
+  /** Optional: Schrift für Text außerhalb von WinAnsi (z. B. č, ć, đ). */
+  unicodeFont?: (family: FontFamily) => Promise<PDFFont>
   images: Map<string, PDFImage>
+}
+
+/** Prüft, ob die Schrift alle Zeichen kodieren kann (Standardschriften werfen sonst). */
+function canEncode(text: string, font: PDFFont): boolean {
+  try {
+    font.encodeText(text)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function drawAnnotation(
@@ -130,7 +142,11 @@ async function drawAnnotation(
       const c = hexToRgb(a.color)
       const lines = a.text.split(/\r?\n/)
       const lineHeight = a.fontSize * TEXT_LINE_HEIGHT
-      const font = await ctx.font(a.font ?? 'sans')
+      const family = a.font ?? 'sans'
+      let font = await ctx.font(family)
+      if (ctx.unicodeFont && !canEncode(a.text.replace(/\r?\n/g, ''), font)) {
+        font = await ctx.unicodeFont(family)
+      }
       lines.forEach((line, i) => {
         if (!line) return
         const baseline = a.y + i * lineHeight + a.fontSize * TEXT_BASELINE_RATIO
@@ -174,9 +190,18 @@ async function drawAnnotation(
  * Baut aus den Seitenverweisen ein neues PDF: Reihenfolge, Drehung und
  * Annotationen werden übernommen. Quellen werden nicht verändert.
  */
+export interface ExportOptions {
+  /**
+   * Bettet eine Unicode-Schrift ein, wenn ein Textfeld Zeichen außerhalb von
+   * WinAnsi enthält (nur privater Build). Ohne: Ersatz durch „?“.
+   */
+  unicodeFont?: (doc: PDFDocument, family: FontFamily) => Promise<PDFFont>
+}
+
 export async function exportPdf(
   sources: ReadonlyMap<string, Uint8Array>,
   pages: readonly PageRef[],
+  options: ExportOptions = {},
 ): Promise<Uint8Array> {
   if (pages.length === 0) {
     throw new PdfEditorError('Es gibt keine Seiten zum Exportieren.')
@@ -195,6 +220,18 @@ export async function exportPdf(
       return font
     },
     images: new Map(),
+  }
+  const { unicodeFont } = options
+  if (unicodeFont) {
+    const unicodeFonts = new Map<FontFamily, Promise<PDFFont>>()
+    ctx.unicodeFont = (family) => {
+      let font = unicodeFonts.get(family)
+      if (!font) {
+        font = unicodeFont(out, family)
+        unicodeFonts.set(family, font)
+      }
+      return font
+    }
   }
 
   // Pro Quelle einmal laden und alle benötigten Seiten in einem Aufruf kopieren,

@@ -12,7 +12,7 @@
  *     (Standard schwarz; weiß bei ersetzten Textzeilen aus „Text bearbeiten“).
  */
 import { normalizeRotation } from '@/lib/geometry'
-import { exportPdf } from '@/services/pdfExport'
+import { exportPdf, type ExportOptions } from '@/services/pdfExport'
 import type { Annotation, CoverAnnotation, PageRef } from '@/types/pdf'
 
 import { fillFormFields, type FieldValues } from '../forms/fill'
@@ -34,6 +34,12 @@ export interface PrivateExportOptions {
   formValues?: ReadonlyArray<FieldValues | undefined>
 }
 
+/** Textfelder mit č, ć, đ usw. erhalten eine eingebettete Unicode-Schrift. */
+const EXPORT_OPTIONS: ExportOptions = {
+  unicodeFont: async (doc, family) =>
+    (await import('../fonts/unicode')).embedUnicodeFont(doc, family),
+}
+
 export async function exportWithRedactions(
   sources: ReadonlyMap<string, Uint8Array>,
   pages: readonly PageRef[],
@@ -42,7 +48,7 @@ export async function exportWithRedactions(
   const formValues = options.formValues ?? []
   const fillForms = formValues.some((v) => v !== undefined && v.size > 0)
   if (!hasRedactions(pages) && !fillForms) {
-    return { bytes: await exportPdf(sources, pages), report: null }
+    return { bytes: await exportPdf(sources, pages, EXPORT_OPTIONS), report: null }
   }
 
   // 1. Nur Seiten (Reihenfolge, Drehung), dann schwärzen und Formulare ausfüllen.
@@ -76,6 +82,6 @@ export async function exportWithRedactions(
       isRedaction(a) ? { ...a, color: a.color || '#000000' } : a,
     ),
   }))
-  const bytes = await exportPdf(new Map([[REDACTED_SOURCE, redacted]]), second)
+  const bytes = await exportPdf(new Map([[REDACTED_SOURCE, redacted]]), second, EXPORT_OPTIONS)
   return { bytes, report }
 }

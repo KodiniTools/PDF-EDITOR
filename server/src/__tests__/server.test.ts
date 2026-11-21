@@ -111,6 +111,9 @@ describe('Neues Dokument', () => {
     assert.throws(() => parseGenerateRequest({ ...GEN, format: 'B5' }), /format/)
     assert.throws(() => parseGenerateRequest({ ...GEN, orientation: 'quer' }), /orientation/)
     assert.throws(() => parseGenerateRequest({ ...GEN, language: 'xx' }), /language/)
+    for (const language of ['hr', 'bs', 'it', 'es', 'de']) {
+      assert.equal(parseGenerateRequest({ ...GEN, language }).language, language)
+    }
     assert.throws(
       () => parseGenerateRequest({ ...GEN, prompt: 'x'.repeat(4_001) }),
       (err: unknown) => err instanceof ValidationError && err.status === 413,

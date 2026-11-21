@@ -26,7 +26,28 @@ const store = useDocumentStore()
 const busy = ref(false)
 const error = ref<string | null>(null)
 const result = ref<{ text: string; source: string } | null>(null)
-const language = ref<RewriteLanguage>('en')
+const LANGUAGE_KEY = 'pdf-editor-privat:zielsprache'
+function storedLanguage(): RewriteLanguage {
+  try {
+    const v = localStorage.getItem(LANGUAGE_KEY)
+    if (v && v in LANGUAGE_LABELS) return v as RewriteLanguage
+  } catch {
+    // ohne Speicher: Standard
+  }
+  return 'en'
+}
+/** Zielsprache; die letzte Wahl wird gemerkt. */
+const language = ref<RewriteLanguage>(storedLanguage())
+const languageMenu = ref(false)
+function chooseLanguage(code: RewriteLanguage): void {
+  language.value = code
+  languageMenu.value = false
+  try {
+    localStorage.setItem(LANGUAGE_KEY, code)
+  } catch {
+    // ohne Speicher: gilt bis zum Neuladen
+  }
+}
 let controller: AbortController | null = null
 
 const MODES = Object.entries(MODE_LABELS) as [Exclude<RewriteMode, 'translate'>, string][]
@@ -97,6 +118,7 @@ watch(
     cancel()
     result.value = null
     error.value = null
+    languageMenu.value = false
   },
 )
 onBeforeUnmount(cancel)
@@ -108,6 +130,7 @@ onBeforeUnmount(cancel)
     :style="style"
     data-testid="text-assist"
     @pointerdown.stop
+    @mousedown.prevent
     @dblclick.stop
   >
     <div class="flex flex-wrap items-center gap-1">
@@ -124,14 +147,42 @@ onBeforeUnmount(cancel)
         {{ label }}
       </button>
       <span class="ml-1 flex items-center gap-1">
-        <select
-          v-model="language"
-          class="rounded border border-gray-300 px-1 py-0.5"
-          aria-label="Zielsprache"
-          :disabled="busy"
-        >
-          <option v-for="[code, label] in LANGUAGES" :key="code" :value="code">{{ label }}</option>
-        </select>
+        <!-- Eigene Liste statt <select>: Ein natives Aufklappmenü nimmt dem Textfeld
+             den Fokus; je nach Browser schließt es sich dann sofort wieder. -->
+        <span class="relative">
+          <button
+            type="button"
+            class="ta-btn"
+            aria-label="Zielsprache"
+            aria-haspopup="listbox"
+            :aria-expanded="languageMenu"
+            :disabled="busy"
+            data-testid="assist-language"
+            @click="languageMenu = !languageMenu"
+          >
+            {{ LANGUAGE_LABELS[language] }} ▾
+          </button>
+          <span
+            v-if="languageMenu"
+            role="listbox"
+            aria-label="Zielsprache"
+            class="absolute top-full left-0 z-30 mt-1 flex w-max flex-col rounded border border-gray-200 bg-white py-1 shadow-lg"
+          >
+            <button
+              v-for="[code, label] in LANGUAGES"
+              :key="code"
+              type="button"
+              role="option"
+              :aria-selected="code === language"
+              class="px-3 py-1 text-left hover:bg-gray-100"
+              :class="code === language ? 'font-semibold text-blue-700' : ''"
+              :data-testid="`assist-language-${code}`"
+              @click="chooseLanguage(code)"
+            >
+              {{ label }}
+            </button>
+          </span>
+        </span>
         <button
           type="button"
           class="ta-btn"

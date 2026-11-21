@@ -52,9 +52,11 @@ export const LIMITS = {
 const LANGUAGE_NAMES: Record<RewriteLanguage, string> = {
   de: 'Deutsch',
   en: 'Englisch',
-  fr: 'Französisch',
-  es: 'Spanisch',
+  hr: 'Kroatisch',
+  bs: 'Bosnisch',
   it: 'Italienisch',
+  es: 'Spanisch',
+  fr: 'Französisch',
   nl: 'Niederländisch',
   pt: 'Portugiesisch',
 }
@@ -83,7 +85,7 @@ Regeln:
 - Soll das Dokument leer bzw. eine Vorlage sein, nutze Felder, leere Tabellenzellen und Platzhalter wie "[Name]" statt erfundener Angaben.
 - Erfinde keine echten Personen, Adressen, Kontonummern oder Rechtsauskünfte; nutze erkennbare Platzhalter.
 - Passe die Menge an das Seitenformat an (Querformat: breitere Tabellen möglich; A5: knapper).
-- Verwende nur Zeichen westeuropäischer Sprachen (Windows-1252); keine Emojis, keine Markdown-Syntax.
+- Verwende nur lateinische Schrift (auch č, ć, đ, š, ž usw.); Bosnisch und Kroatisch immer in lateinischer Schrift, nie kyrillisch. Keine Emojis, keine Markdown-Syntax.
 - "title" ist der Dateiname-taugliche Titel des Dokuments (kurz, ohne Dateiendung).`
 
 const BLOCK_SCHEMA = {
