@@ -19,7 +19,12 @@ const { addFiles, requestDocument } = vi.hoisted(() => ({
   requestDocument: vi.fn<typeof import('@/private/generate/api').requestDocument>(),
 }))
 vi.mock('@/stores/document', () => ({
-  useDocumentStore: () => ({ addFiles, hasDocument: false, pages: [], selectPage: vi.fn() }),
+  useDocumentStore: () => ({
+    addFiles,
+    hasDocument: false,
+    pages: [],
+    selectPage: vi.fn<(id: string) => void>(),
+  }),
 }))
 vi.mock('@/private/generate/api', async (orig) => ({
   ...(await orig<typeof import('@/private/generate/api')>()),
