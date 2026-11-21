@@ -3,16 +3,42 @@
  * Toolbar-Ergänzung des privaten Builds: „Neues Dokument“ und die Modellauswahl
  * für alle KI-Funktionen samt Anzeige des zuletzt abgerechneten Modells.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { formatUsd, MODEL_INFO, modelLabel } from '../models'
+import { useCostStore } from '../stores/costs'
 import { useModelStore } from '../stores/model'
+import CostDialog from './CostDialog.vue'
 import NewDocumentDialog from './NewDocumentDialog.vue'
 
 const models = useModelStore()
+const costs = useCostStore()
 const showNew = ref(false)
+const showCosts = ref(false)
 
-onMounted(() => void models.loadAvailable())
+/** Zurück im Tab: Kosten aktualisieren, falls älter als 10 Minuten. */
+function onVisible(): void {
+  if (document.visibilityState === 'visible') void costs.ensureFresh()
+}
+
+onMounted(() => {
+  void models.loadAvailable()
+  void costs.ensureFresh()
+  document.addEventListener('visibilitychange', onVisible)
+})
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
+
+const costTitle = computed(() => {
+  if (costs.configured === false) return 'Kostenrechner: auf dem Server nicht eingerichtet'
+  if (!costs.report) return 'Kosten der Anthropic API'
+  const a = costs.account
+  return [
+    `Dieser Monat: ${formatUsd(costs.monthUsd)} (4–24 h verzögert)`,
+    a.balance >= 0
+      ? `Guthaben (geschätzt): ${formatUsd(a.balance)}`
+      : `Offener Betrag: ${formatUsd(-a.balance)}`,
+  ].join('\n')
+})
 
 const usageTitle = computed(() => {
   const l = models.last
@@ -59,6 +85,21 @@ const usageTitle = computed(() => {
       {{ modelLabel(models.last.model) }} ·
       {{ models.last.cost === null ? '?' : formatUsd(models.last.cost) }}
     </span>
+    <button
+      type="button"
+      class="rounded-md border px-2 py-1.5 tabular-nums hover:bg-gray-100"
+      :class="
+        costs.budgetShare !== null && costs.budgetShare >= 1
+          ? 'border-red-300 bg-red-50 text-red-800'
+          : 'border-gray-300 bg-white'
+      "
+      :title="costTitle"
+      data-testid="cost-button"
+      @click="showCosts = true"
+    >
+      Kosten<template v-if="costs.report">: {{ formatUsd(costs.monthUsd) }}</template>
+    </button>
     <NewDocumentDialog v-if="showNew" @close="showNew = false" />
+    <CostDialog v-if="showCosts" @close="showCosts = false" />
   </div>
 </template>

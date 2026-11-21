@@ -69,6 +69,8 @@ export interface CoverAnnotation extends AnnotationBase {
    * entfernt. Der öffentliche Build legt solche Flächen nie an.
    */
   redact?: boolean
+  /** Vorschau deckend statt halbtransparent (z. B. gelöschtes Bild, nur privater Build). */
+  solid?: boolean
 }
 
 export interface ImageAnnotation extends AnnotationBase {

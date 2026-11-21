@@ -10,8 +10,10 @@ import Anthropic from '@anthropic-ai/sdk'
 import { askDocument } from './ask.ts'
 import { SuggestError, trackUsage, type CallOptions, type StreamFn } from './claude.ts'
 import type { Config } from './config.ts'
+import { CostRequestError, type CostService } from './costs.ts'
 import { suggestFormValues } from './forms.ts'
 import { generateDocument } from './generate.ts'
+import { detectImages } from './images.ts'
 import { recognizePage } from './ocr.ts'
 import { rewriteText } from './rewrite.ts'
 import { suggestRedactions } from './suggest.ts'
@@ -36,6 +38,8 @@ export interface AppDeps {
   log?: (line: string) => void
   /** Gleichzeitige Analysen (Schutz vor versehentlichem Mehrfachklick/Kosten). */
   maxConcurrent?: number
+  /** Kostenrechner; fehlt, wenn kein ANTHROPIC_ADMIN_KEY gesetzt ist. */
+  costs?: CostService
 }
 
 class HttpError extends Error {
@@ -113,6 +117,24 @@ export function toHttpError(err: unknown, timedOut: boolean): HttpError {
   return new HttpError(500, 'Interner Fehler.')
 }
 
+/** Fehler der Kostenabfrage → Status + Meldung (ohne interne Details). */
+export function costHttpError(err: unknown): HttpError {
+  if (err instanceof CostRequestError) return new HttpError(err.status, err.message)
+  if (
+    err instanceof Anthropic.AuthenticationError ||
+    err instanceof Anthropic.PermissionDeniedError
+  ) {
+    return new HttpError(
+      502,
+      'Der Admin-Key (ANTHROPIC_ADMIN_KEY) ist ungültig oder darf keine Kosten lesen.',
+    )
+  }
+  if (err instanceof Anthropic.RateLimitError) {
+    return new HttpError(429, 'Zu viele Kostenabfragen. Bitte in einer Minute erneut versuchen.')
+  }
+  return new HttpError(502, 'Die Kosten konnten nicht von Anthropic geladen werden.')
+}
+
 export function createHandler(deps: AppDeps) {
   const log = deps.log ?? ((line: string) => console.log(line))
   const maxConcurrent = deps.maxConcurrent ?? 2
@@ -178,6 +200,35 @@ export function createHandler(deps: AppDeps) {
     }
   }
 
+  async function costsEndpoint(req: IncomingMessage, res: ServerResponse, url: URL) {
+    if (req.method !== 'GET') {
+      send(res, 405, { error: 'Methode nicht erlaubt.' })
+      return
+    }
+    if (!deps.costs) {
+      send(res, 503, {
+        error: 'Kostenrechner nicht eingerichtet (ANTHROPIC_ADMIN_KEY fehlt auf dem Server).',
+        configured: false,
+      })
+      return
+    }
+    const started = Date.now()
+    try {
+      const report = await deps.costs.get(
+        url.searchParams.get('from'),
+        url.searchParams.get('refresh') === '1',
+      )
+      send(res, 200, report)
+      log(`costs ok from=${report.from} days=${report.days.length} ms=${Date.now() - started}`)
+    } catch (err) {
+      const httpErr = costHttpError(err)
+      log(
+        `costs fehler status=${httpErr.status} ms=${Date.now() - started} ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`,
+      )
+      send(res, httpErr.status, { error: httpErr.message })
+    }
+  }
+
   const routes: Record<string, (req: IncomingMessage, res: ServerResponse) => Promise<void>> = {
     '/api/redaction-suggestions': (req, res) =>
       aiEndpoint('suggest', req, res, async (body, { stream, opts }) => {
@@ -224,6 +275,15 @@ export function createHandler(deps: AppDeps) {
           log: `format=${input.format}:${input.orientation} prompt=${input.prompt.length} blocks=${document.blocks.length}`,
         }
       }),
+    '/api/detect-images': (req, res) =>
+      aiEndpoint('images', req, res, async (body, { stream, opts }) => {
+        const input = parseOcrRequest(body)
+        const regions = await detectImages(stream, input, opts)
+        return {
+          body: { regions },
+          log: `size=${input.width}x${input.height} bytes=${input.image.length} regions=${regions.length}`,
+        }
+      }),
     '/api/rewrite': (req, res) =>
       aiEndpoint('rewrite', req, res, async (body, { stream, opts }) => {
         const input = parseRewriteRequest(body)
@@ -243,7 +303,16 @@ export function createHandler(deps: AppDeps) {
           send(res, 405, { error: 'Methode nicht erlaubt.' })
           return
         }
-        send(res, 200, { ok: true, model: deps.config.model, models: deps.config.models })
+        send(res, 200, {
+          ok: true,
+          model: deps.config.model,
+          models: deps.config.models,
+          costs: !!deps.costs,
+        })
+        return
+      }
+      if (url.pathname === '/api/costs') {
+        await costsEndpoint(req, res, url)
         return
       }
       const route = Object.hasOwn(routes, url.pathname) ? routes[url.pathname] : undefined

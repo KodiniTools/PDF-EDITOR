@@ -9,6 +9,7 @@ import { askDocument, buildAskParams } from '../ask.ts'
 import { createHandler, toHttpError } from '../app.ts'
 import { buildFormParams, sanitizeSuggestions, suggestFormValues } from '../forms.ts'
 import { buildGenerateParams, generateDocument, sanitizeDocument } from '../generate.ts'
+import { buildImagesParams, sanitizeRegions } from '../images.ts'
 import { buildOcrParams, recognizePage, sanitizeOcr } from '../ocr.ts'
 import { buildRewriteParams, rewriteText, sanitizeRewrite } from '../rewrite.ts'
 import { ConfigError, DEFAULT_PORT, loadConfig } from '../config.ts'
@@ -173,6 +174,42 @@ describe('Neues Dokument', () => {
       ),
       (err: unknown) => err instanceof SuggestError && err.status === 422,
     )
+  })
+})
+
+describe('Bilder erkennen', () => {
+  const REQ_IMG = {
+    image: 'A'.repeat(200),
+    mediaType: 'image/jpeg' as const,
+    width: 1000,
+    height: 1400,
+  }
+  it('buildImagesParams: Bild + Größe, JSON-Schema, gewähltes Modell', () => {
+    const p = buildImagesParams(REQ_IMG, { model: 'claude-sonnet-5-5', effort: 'medium' })
+    assert.equal(p.model, 'claude-sonnet-5-5')
+    assert.equal(p.output_config?.format?.type, 'json_schema')
+    const content = p.messages[0]?.content as { type: string; text?: string }[]
+    assert.equal(content[0]?.type, 'image')
+    assert.match(content[1]?.text ?? '', /1000 × 1400/)
+  })
+  it('sanitizeRegions: begrenzt, ordnet um, verwirft Ganzseite und Winziges', () => {
+    const regions = sanitizeRegions(
+      {
+        regions: [
+          { kind: 'logo', label: ' Logo\n oben ', x0: 900, y0: -5, x1: 1200, y1: 100 },
+          { kind: 'foo', label: '', x0: 300, y0: 300, x1: 100, y1: 100 },
+          { kind: 'photo', label: 'Seite', x0: 0, y0: 0, x1: 1000, y1: 1400 },
+          { kind: 'photo', label: 'klein', x0: 1, y0: 1, x1: 3, y1: 3 },
+          { kind: 'photo', label: 'kaputt', x0: 'a', y0: 1, x1: 3, y1: 3 },
+        ],
+      },
+      REQ_IMG,
+    )
+    assert.deepEqual(regions, [
+      { kind: 'logo', label: 'Logo oben', box: [900, 0, 1000, 100] },
+      { kind: 'other', label: 'Bildbereich', box: [100, 100, 300, 300] },
+    ])
+    assert.deepEqual(sanitizeRegions({}, REQ_IMG), [])
   })
 })
 
@@ -670,6 +707,7 @@ describe('HTTP', () => {
       ok: true,
       model: 'claude-opus-5-5',
       models: ['claude-opus-5-5', 'claude-haiku-5-5'],
+      costs: false,
     })
   })
 
@@ -824,6 +862,24 @@ describe('HTTP', () => {
       logs.some((l) => l.startsWith('generate ok format=A5:landscape') && l.includes('blocks=2')),
     )
     assert.ok(!logs.join('\n').includes('Geheimclub'))
+  })
+
+  it('erkennt Bildbereiche über /api/detect-images, ohne Bild zu loggen', async () => {
+    next = message(
+      JSON.stringify({
+        regions: [{ kind: 'stamp', label: 'Stempel', x0: 10, y0: 10, x1: 200, y1: 120 }],
+      }),
+    )
+    const res = await fetch(`${base}/api/detect-images`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(IMAGE),
+    })
+    assert.equal(res.status, 200)
+    const body = (await res.json()) as { regions: unknown[] }
+    assert.deepEqual(body.regions, [{ kind: 'stamp', label: 'Stempel', box: [10, 10, 200, 120] }])
+    assert.ok(logs.some((l) => l.startsWith('images ok size=1000x1400') && l.includes('regions=1')))
+    assert.ok(!logs.join('\n').includes('AAAA'))
   })
 
   it('reicht KI-Fehler als verständliche Meldung durch', async () => {
