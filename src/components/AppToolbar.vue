@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref } from 'vue'
 
+import { IMAGE_ACCEPT, readImageFile } from '@/lib/image'
 import { useDocumentStore } from '@/stores/document'
 import type { FontFamily, Tool } from '@/types/pdf'
 
@@ -17,6 +18,35 @@ const PrivateToolbar = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/PrivateToolbar.vue'))
   : null
 const fileInput = ref<HTMLInputElement | null>(null)
+const imageInput = ref<HTMLInputElement | null>(null)
+
+/** Bild aus Datei einfügen: zentriert auf der aktuellen Seite, danach verschieb-/skalierbar. */
+async function onImageChange(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // gleiche Datei erneut wählbar
+  if (!file) return
+  try {
+    store.addImage(await readImageFile(file))
+  } catch (err) {
+    console.error('[pdf-editor] Bild', err)
+    store.error =
+      err instanceof Error && err.name === 'ImageError'
+        ? err.message
+        : 'Das Bild konnte nicht eingefügt werden.'
+  }
+}
+
+const deleteLabel = computed(() => {
+  switch (store.selectedAnnotation?.kind) {
+    case 'image':
+      return 'Bild löschen'
+    case 'text':
+      return 'Text löschen'
+    default:
+      return 'Löschen'
+  }
+})
 
 const tools: { id: Tool; label: string; hint: string }[] = [
   { id: 'select', label: 'Auswählen', hint: 'Annotationen verschieben (V)' },
@@ -187,6 +217,35 @@ function chooseTool(id: Tool): void {
           {{ t.label }}
         </button>
       </div>
+
+      <button
+        type="button"
+        class="tb-btn"
+        title="Bild (PNG, JPEG, WebP, GIF) auf der aktuellen Seite einfügen"
+        :disabled="store.busy"
+        data-testid="insert-image"
+        @click="imageInput?.click()"
+      >
+        Bild
+      </button>
+      <input
+        ref="imageInput"
+        type="file"
+        :accept="IMAGE_ACCEPT"
+        class="hidden"
+        data-testid="image-input"
+        @change="onImageChange"
+      />
+      <button
+        v-if="store.selectedAnnotation"
+        type="button"
+        class="tb-btn text-red-700"
+        title="Ausgewähltes Element löschen (Entf)"
+        data-testid="delete-annotation"
+        @click="store.removeSelectedAnnotation()"
+      >
+        {{ deleteLabel }}
+      </button>
 
       <label v-if="selectedText" class="flex items-center gap-1 text-sm" title="Ausgewählter Text">
         Auswahl: Größe

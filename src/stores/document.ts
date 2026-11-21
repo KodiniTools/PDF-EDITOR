@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { looksLikePdf, readFileBytes } from '@/lib/file'
+import { placeOnPage, type LoadedImage } from '@/lib/image'
 import {
   displaySize,
   normalizeRotation,
@@ -333,6 +334,30 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
+  /** Fügt ein Bild zentriert auf der ausgewählten Seite ein und wählt es aus. */
+  function addImage(image: LoadedImage): string | null {
+    const page = selectedPage.value
+    if (!page) return null
+    const size = displaySize(page.box, normalizeRotation(page.baseRotation + page.rotation))
+    const id = recorded.addAnnotation(page.id, {
+      kind: 'image',
+      dataUrl: image.dataUrl,
+      ...placeOnPage(image, size),
+    })
+    tool.value = 'select'
+    selectedAnnotationId.value = id
+    return id
+  }
+
+  /** Löscht die ausgewählte Annotation (ein Undo-Schritt). */
+  function removeSelectedAnnotation(): boolean {
+    const page = selectedPage.value
+    const id = selectedAnnotationId.value
+    if (!page || !id || !page.annotations.some((a) => a.id === id)) return false
+    recorded.removeAnnotation(page.id, id)
+    return true
+  }
+
   // Öffentliche, im Verlauf aufgezeichnete Varianten der Änderungsfunktionen.
   // `group` bündelt aufeinanderfolgende Aufrufe zu einem Undo-Schritt.
   const recorded = {
@@ -389,6 +414,8 @@ export const useDocumentStore = defineStore('document', () => {
     addFiles,
     selectPage,
     ...recorded,
+    addImage,
+    removeSelectedAnnotation,
     undo,
     redo,
     newGroup,

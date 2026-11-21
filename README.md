@@ -9,8 +9,8 @@ Rein clientseitiger PDF-Editor: Dateien verlassen den Browser nicht.
 - Seiten **drehen**, **löschen**, **umsortieren** (Drag & Drop oder ↑/↓)
 - **Vorhandenen Text bearbeiten**: Textzeile anklicken → wird abgedeckt und als editierbarer Text (gleiche Position/Größe, passende Standardschrift) neu gesetzt
 - **Abdecken** (Weiß/Schwarz/Farbe) – nur optisch, der Inhalt darunter bleibt in der PDF auslesbar (echtes Schwärzen: siehe private Variante)
-- Annotationen: **Text** (mehrzeilig, Größe/Farbe), **Markierung** (Rechteck, Farbe), **Signatur** (zeichnen oder PNG/JPEG hochladen)
-- Annotationen verschieben, Markierung/Signatur skalieren, mit Entf löschen
+- Annotationen: **Text** (mehrzeilig, Größe/Farbe), **Markierung** (Rechteck, Farbe), **Signatur** (zeichnen oder PNG/JPEG hochladen), **Bild** (PNG, JPEG, WebP, GIF; Button „Bild“, wird zentriert eingefügt, große Fotos auf 2400 px verkleinert)
+- Annotationen verschieben, Markierung/Bild/Signatur skalieren; löschen per ✕ an der Auswahl, Button „Löschen“ in der Toolbar oder Entf
 - **Rückgängig/Wiederholen** mit 50 Schritten (Strg+Z, Strg+Y bzw. Strg+Umschalt+Z, Buttons ↶/↷); Ziehen und Tippen zählen je als ein Schritt
 - **Export** als neue PDF (pdf-lib); Drehung und Annotationen werden eingebrannt
 
