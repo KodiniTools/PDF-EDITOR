@@ -20,6 +20,11 @@ export interface Config {
   maxAskChars: number
   /** Zeitlimit für einen Aufruf der Anthropic API. */
   timeoutMs: number
+  /**
+   * Optional: Admin-Key (sk-ant-admin…) nur für den Kostenrechner (GET /api/costs).
+   * null = Kostenrechner aus.
+   */
+  adminKey: string | null
 }
 
 export class ConfigError extends Error {
@@ -66,6 +71,17 @@ function parseModels(raw: string | undefined, model: string): string[] {
   return [...new Set([model, ...list])]
 }
 
+function parseAdminKey(raw: string | undefined, apiKey: string): string | null {
+  const key = raw?.trim() ?? ''
+  if (!key) return null
+  if (key === apiKey) {
+    throw new ConfigError(
+      'ANTHROPIC_ADMIN_KEY darf nicht der normale API-Key sein (Admin-Key: sk-ant-admin…).',
+    )
+  }
+  return key
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const apiKey = env.ANTHROPIC_API_KEY?.trim() ?? ''
   if (!apiKey) {
@@ -93,5 +109,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Passt mit Puffer in MAX_BODY_BYTES (1 MB) bzw. client_max_body_size 1m.
     maxAskChars: int(env, 'MAX_ASK_CHARS', 400_000, 1_000, 2_000_000),
     timeoutMs: int(env, 'TIMEOUT_MS', 180_000, 5_000, 600_000),
+    adminKey: parseAdminKey(env.ANTHROPIC_ADMIN_KEY, apiKey),
   }
 }
