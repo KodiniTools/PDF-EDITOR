@@ -24,6 +24,15 @@ vi.mock('@/lib/file', async (orig) => ({
   downloadBytes: vi.fn<(b: Uint8Array, n: string) => void>(),
 }))
 
+const printMock = vi.hoisted(() => ({
+  render: vi.fn<(bytes: Uint8Array) => Promise<string[]>>(async () => ['blob:1']),
+  print: vi.fn<(urls: readonly string[]) => Promise<void>>(async () => undefined),
+}))
+vi.mock('@/lib/print', () => ({
+  renderForPrint: printMock.render,
+  printImages: printMock.print,
+}))
+
 async function open(pages: number) {
   const store = useDocumentStore()
   const pdf = await PDFDocument.create()
@@ -79,5 +88,20 @@ describe('ExportDialog', () => {
     const [bytes, name] = vi.mocked(downloadBytes).mock.calls[0]!
     expect(name).toBe('brief-bearbeitet-seite-2.pdf')
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1)
+  })
+
+  it('Druckmodus: druckt die gewählten Seiten mit Änderungen, ohne Download', async () => {
+    const store = await open(3)
+    store.toggleMarked(store.pages[2]!.id)
+    const w = mount(ExportDialog, { props: { mode: 'print' } })
+    expect(w.text()).toContain('Drucken')
+    expect(w.get('[data-testid="export-confirm"]').text()).toBe('1 Seite drucken')
+    await w.get('[data-testid="export-confirm"]').trigger('click')
+    await flushPromises()
+    const bytes = printMock.render.mock.calls[0]![0]
+    expect((await PDFDocument.load(bytes)).getPages().map((p) => p.getWidth())).toEqual([102])
+    expect(printMock.print).toHaveBeenCalledWith(['blob:1'])
+    expect(downloadBytes).not.toHaveBeenCalled()
+    expect(w.emitted('close')).toHaveLength(1)
   })
 })

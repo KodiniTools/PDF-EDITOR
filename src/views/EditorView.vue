@@ -18,6 +18,12 @@ const isPrivate = __PRIVATE__
 const store = useDocumentStore()
 const showSignature = ref(false)
 const showExport = ref(false)
+const outputMode = ref<'export' | 'print'>('export')
+
+function openOutput(mode: 'export' | 'print'): void {
+  outputMode.value = mode
+  showExport.value = true
+}
 const dropActive = ref(false)
 
 async function openFiles(files: File[]): Promise<void> {
@@ -69,6 +75,12 @@ function onKeyDown(e: KeyboardEvent): void {
     target &&
     (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
   ) {
+    return
+  }
+  // Strg/Cmd+P: eigener Druck (sonst druckt der Browser die Bedienoberfläche).
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'p' && store.hasDocument) {
+    e.preventDefault()
+    if (!showExport.value && !showSignature.value && !store.busy) openOutput('print')
     return
   }
   if (showSignature.value || showExport.value || !store.hasDocument) return
@@ -135,7 +147,8 @@ onBeforeUnmount(() => {
   >
     <AppToolbar
       @open-files="openFiles"
-      @export="showExport = true"
+      @export="openOutput('export')"
+      @print="openOutput('print')"
       @edit-signature="showSignature = true"
     />
 
@@ -196,6 +209,10 @@ onBeforeUnmount(() => {
     </div>
 
     <SignatureDialog v-if="showSignature" @save="onSignatureSaved" @cancel="onSignatureCancel" />
-    <ExportDialog v-if="showExport && store.hasDocument" @close="showExport = false" />
+    <ExportDialog
+      v-if="showExport && store.hasDocument"
+      :mode="outputMode"
+      @close="showExport = false"
+    />
   </div>
 </template>

@@ -65,7 +65,11 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-export async function readImageFile(file: File): Promise<LoadedImage> {
+/** @param maxSide längste Seite in Pixeln, größere Bilder werden verkleinert. */
+export async function readImageFile(
+  file: File,
+  maxSide: number = MAX_IMAGE_SIDE,
+): Promise<LoadedImage> {
   if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
     throw new ImageError('Nur PNG, JPEG, WebP oder GIF werden unterstützt.')
   }
@@ -74,11 +78,11 @@ export async function readImageFile(file: File): Promise<LoadedImage> {
   const img = await loadImage(source)
   const natural = { width: img.naturalWidth || 1, height: img.naturalHeight || 1 }
   const direct = file.type === 'image/png' || file.type === 'image/jpeg'
-  if (direct && Math.max(natural.width, natural.height) <= MAX_IMAGE_SIDE) {
+  if (direct && Math.max(natural.width, natural.height) <= maxSide) {
     return { dataUrl: source, ...natural }
   }
   // Umwandeln bzw. verkleinern; JPEG bleibt JPEG, sonst PNG (Transparenz).
-  const size = fitWithin(natural.width, natural.height, MAX_IMAGE_SIDE)
+  const size = fitWithin(natural.width, natural.height, maxSide)
   const canvas = document.createElement('canvas')
   canvas.width = size.width
   canvas.height = size.height

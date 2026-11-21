@@ -8,6 +8,7 @@ import type { FontFamily, Tool } from '@/types/pdf'
 const emit = defineEmits<{
   openFiles: [files: File[]]
   export: []
+  print: []
   editSignature: []
 }>()
 
@@ -19,6 +20,9 @@ const PrivateToolbar = __PRIVATE__
   : null
 const fileInput = ref<HTMLInputElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
+const scanInput = ref<HTMLInputElement | null>(null)
+/** PDFs und Scans/Fotos (werden als A4-Seite übernommen). */
+const OPEN_ACCEPT = `application/pdf,.pdf,${IMAGE_ACCEPT}`
 
 /** Bild aus Datei einfügen: zentriert auf der aktuellen Seite, danach verschieb-/skalierbar. */
 async function onImageChange(e: Event): Promise<void> {
@@ -191,10 +195,30 @@ function chooseTool(id: Tool): void {
     >
       {{ store.hasDocument ? 'PDF hinzufügen' : 'PDF öffnen' }}
     </button>
+    <button
+      type="button"
+      class="tb-btn"
+      title="Scan oder Foto (JPEG, PNG, WebP, GIF) als neue Seite übernehmen. Auf Handy/Tablet öffnet sich die Kamera."
+      :disabled="store.busy"
+      data-testid="scan-button"
+      @click="scanInput?.click()"
+    >
+      Scan / Foto
+    </button>
+    <input
+      ref="scanInput"
+      type="file"
+      :accept="IMAGE_ACCEPT"
+      capture="environment"
+      multiple
+      class="hidden"
+      data-testid="scan-input"
+      @change="onFileChange"
+    />
     <input
       ref="fileInput"
       type="file"
-      accept="application/pdf,.pdf"
+      :accept="OPEN_ACCEPT"
       multiple
       class="hidden"
       data-testid="file-input"
@@ -387,6 +411,17 @@ function chooseTool(id: Tool): void {
         @click="store.reset()"
       >
         Schließen
+      </button>
+      <button
+        v-if="store.hasDocument"
+        type="button"
+        class="tb-btn"
+        title="Drucken (Strg+P)"
+        :disabled="store.busy"
+        data-testid="print"
+        @click="emit('print')"
+      >
+        Drucken
       </button>
       <button
         v-if="store.hasDocument"

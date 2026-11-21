@@ -1,18 +1,22 @@
 <script setup lang="ts">
 /**
- * Dialog vor dem Export: alle Seiten, nur die in der Seitenleiste markierten oder
- * nur die aktuelle Seite. Die Auswahl gilt nur für die exportierte Datei; das
- * Dokument im Editor bleibt unverändert.
+ * Dialog vor Export bzw. Druck: alle Seiten, nur die in der Seitenleiste markierten
+ * oder nur die aktuelle Seite. Die Auswahl gilt nur für die Ausgabe; das Dokument im
+ * Editor bleibt unverändert. Gedruckt wird die exportierte PDF (mit allen Änderungen).
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { downloadBytes } from '@/lib/file'
 import { formatPageRanges } from '@/lib/pageRanges'
+import { printImages, renderForPrint } from '@/lib/print'
 import { useDocumentStore } from '@/stores/document'
 
 type Scope = 'all' | 'marked' | 'current'
 
+const props = withDefaults(defineProps<{ mode?: 'export' | 'print' }>(), { mode: 'export' })
 const emit = defineEmits<{ close: [] }>()
+const printing = ref(false)
+const busy = computed(() => store.busy || printing.value)
 const store = useDocumentStore()
 
 const markedNumbers = computed(() => store.markedPages.map((p) => store.pages.indexOf(p) + 1))
@@ -41,20 +45,44 @@ const fileName = computed(() => {
   return `${base}-seite-${formatPageRanges(numbers).replace(/, /g, '_').replace(/–/g, '-')}.pdf`
 })
 
+const buttonLabel = computed(() => {
+  if (printing.value || (store.busy && props.mode === 'print')) return 'Bereite Druck vor…'
+  if (store.busy) return 'Exportiere…'
+  const pages = `${count.value} ${count.value === 1 ? 'Seite' : 'Seiten'}`
+  return props.mode === 'print' ? `${pages} drucken` : `${pages} exportieren`
+})
+
 async function run(): Promise<void> {
-  if (store.busy || count.value === 0) return
+  if (busy.value || count.value === 0) return
+  let bytes: Uint8Array
   try {
-    const bytes = await store.exportDocument(pageIds.value)
-    downloadBytes(bytes, fileName.value)
-    emit('close')
+    bytes = await store.exportDocument(pageIds.value)
   } catch {
     // Meldung steht in store.error (Banner); Dialog schließen, damit sie sichtbar ist.
     emit('close')
+    return
+  }
+  if (props.mode === 'export') {
+    downloadBytes(bytes, fileName.value)
+    emit('close')
+    return
+  }
+  printing.value = true
+  try {
+    const urls = await renderForPrint(bytes)
+    emit('close')
+    await printImages(urls)
+  } catch (err) {
+    console.error('[pdf-editor] Drucken fehlgeschlagen', err)
+    store.error = 'Drucken fehlgeschlagen. Alternativ exportieren und die PDF drucken.'
+    emit('close')
+  } finally {
+    printing.value = false
   }
 }
 
 function onKey(e: KeyboardEvent): void {
-  if (e.key === 'Escape' && !store.busy) emit('close')
+  if (e.key === 'Escape' && !busy.value) emit('close')
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
@@ -63,7 +91,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 <template>
   <div
     class="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
-    @click.self="!store.busy && emit('close')"
+    @click.self="!busy && emit('close')"
   >
     <div
       role="dialog"
@@ -72,8 +100,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="w-full max-w-md rounded-xl bg-white p-5 text-sm shadow-xl"
       data-testid="export-dialog"
     >
-      <h2 id="export-title" class="text-base font-semibold">Exportieren</h2>
-      <p class="mt-1 text-gray-600">Welche Seiten sollen in die PDF-Datei?</p>
+      <h2 id="export-title" class="text-base font-semibold">
+        {{ mode === 'print' ? 'Drucken' : 'Exportieren' }}
+      </h2>
+      <p class="mt-1 text-gray-600">
+        Welche Seiten sollen {{ mode === 'print' ? 'gedruckt werden' : 'in die PDF-Datei' }}?
+      </p>
 
       <fieldset class="mt-4 space-y-2">
         <legend class="sr-only">Seiten</legend>
@@ -121,13 +153,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </label>
       </fieldset>
 
-      <p class="mt-4 text-xs break-all text-gray-500">Datei: {{ fileName }}</p>
+      <p v-if="mode === 'export'" class="mt-4 text-xs break-all text-gray-500">
+        Datei: {{ fileName }}
+      </p>
+      <p v-else class="mt-4 text-xs text-gray-500">
+        Gedruckt wird mit allen Änderungen. Drucker, Papierformat und Ausrichtung wählst du danach
+        im Druckdialog des Browsers.
+      </p>
 
       <div class="mt-5 flex justify-end gap-2">
         <button
           type="button"
           class="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-100 disabled:opacity-50"
-          :disabled="store.busy"
+          :disabled="busy"
           @click="emit('close')"
         >
           Abbrechen
@@ -135,13 +173,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <button
           type="button"
           class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
-          :disabled="store.busy || count === 0"
+          :disabled="busy || count === 0"
           data-testid="export-confirm"
           @click="run"
         >
-          {{
-            store.busy ? 'Exportiere…' : `${count} ${count === 1 ? 'Seite' : 'Seiten'} exportieren`
-          }}
+          {{ buttonLabel }}
         </button>
       </div>
     </div>

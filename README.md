@@ -5,6 +5,7 @@ Rein clientseitiger PDF-Editor: Dateien verlassen den Browser nicht.
 ## Funktionen
 
 - PDFs öffnen (Button oder Drag & Drop), mehrere Dateien = **zusammenführen**
+- **Scan / Foto** übernehmen: JPEG, PNG, WebP oder GIF wird als A4-Seite (hoch/quer nach Bild) eingefügt, bis 3600 px Kantenlänge (≈ 300 dpi); auf Handy/Tablet öffnet der Button die Kamera. Direkter Zugriff auf einen Scanner ist im Browser nicht möglich (kein TWAIN/WIA/eSCL) – Scanner-App speichern lassen und die Datei öffnen
 - Seiten anzeigen (pdf.js), Miniaturen lazy gerendert
 - Seiten **drehen**, **löschen**, **umsortieren** (Drag & Drop oder ↑/↓)
 - **Vorhandenen Text bearbeiten**: Textzeile anklicken → wird abgedeckt und als editierbarer Text (gleiche Position/Größe, passende Standardschrift) neu gesetzt
@@ -12,9 +13,10 @@ Rein clientseitiger PDF-Editor: Dateien verlassen den Browser nicht.
 - Annotationen: **Text** (mehrzeilig, Größe/Farbe), **Markierung** (Rechteck, Farbe), **Signatur** (zeichnen oder PNG/JPEG hochladen), **Bild** (PNG, JPEG, WebP, GIF; Button „Bild“, wird zentriert eingefügt, große Fotos auf 2400 px verkleinert)
 - Annotationen verschieben, Markierung/Bild/Signatur skalieren; löschen per ✕ an der Auswahl, Button „Löschen“ in der Toolbar oder Entf
 - **Rückgängig/Wiederholen** mit 50 Schritten (Strg+Z, Strg+Y bzw. Strg+Umschalt+Z, Buttons ↶/↷); Ziehen und Tippen zählen je als ein Schritt
-- **Export** als neue PDF (pdf-lib); Drehung und Annotationen werden eingebrannt
+- **Export** als neue PDF (pdf-lib); Drehung und Annotationen werden eingebrannt. Ein Dialog fragt: alle Seiten, nur markierte (Häkchen an der Seitenkachel) oder nur die aktuelle Seite
+- **Drucken** (Button oder Strg+P) mit derselben Seitenauswahl: die exportierte PDF wird mit pdf.js in Bilder (≈ 180 dpi) gerendert und über den Druckdialog des Browsers ausgegeben (kein iframe, keine CSP-Ausnahme nötig)
 
-Tastatur: `V` Auswählen, `E` Text bearbeiten, `T` Text, `A` Abdecken, `H` Markieren, `S` Signatur, `↑/↓` Seite wechseln, `Entf` Annotation löschen, `Esc` Auswahl aufheben.
+Tastatur: `V` Verschieben, `E` Text bearbeiten, `T` Text, `A` Abdecken, `H` Markieren, `S` Signatur, `↑/↓` Seite wechseln, `Entf` Annotation löschen, `Esc` Auswahl aufheben, `Strg+P` Drucken.
 
 ## Stack
 
