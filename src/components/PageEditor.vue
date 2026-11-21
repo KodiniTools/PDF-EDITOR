@@ -29,6 +29,10 @@ const REDACT_PREVIEW = 'rgba(0, 0, 0, 0.6)'
 const SuggestionOverlay = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/SuggestionOverlay.vue'))
   : null
+/** Vorschau ausgefüllter Formularfelder – nur im privaten Build. */
+const FormOverlay = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/FormOverlay.vue'))
+  : null
 /** KI-Umschreiben unter ausgewählten Textfeldern – nur im privaten Build. */
 const TextAssist = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/TextAssist.vue'))
@@ -536,6 +540,7 @@ function px(v: number): string {
         />
       </template>
 
+      <component :is="FormOverlay" v-if="FormOverlay" :page="page" :zoom="zoom" />
       <component :is="SuggestionOverlay" v-if="SuggestionOverlay" :page="page" :zoom="zoom" />
       <component
         :is="TextAssist"

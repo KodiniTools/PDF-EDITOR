@@ -99,4 +99,53 @@ describe('exportWithRedactions', () => {
     expect(second!.text).toContain('OFFEN')
     expect(second!.text).toContain('Hinweis')
   })
+
+  it('füllt Formularfelder aus, nachdem Felder in geschwärzten Bereichen entfernt wurden', async () => {
+    const d = await PDFDocument.create()
+    const p = d.addPage([600, 800])
+    const form = d.getForm()
+    form.createTextField('name').addToPage(p, { x: 100, y: 700, width: 200, height: 20 })
+    form.createTextField('iban').addToPage(p, { x: 100, y: 600, width: 200, height: 20 })
+    const src = await d.save()
+    const pages = [
+      page('a', 0, {
+        annotations: [
+          // Feld „iban“: PDF y 600–620 → angezeigt 180–200
+          {
+            id: 'r',
+            kind: 'cover',
+            redact: true,
+            color: '#000000',
+            x: 90,
+            y: 175,
+            width: 230,
+            height: 30,
+          },
+        ],
+      }),
+    ]
+    const formValues = [
+      new Map<string, string | boolean>([
+        ['name', 'Max Mustermann'],
+        ['iban', 'DE89370400440532013000'],
+      ]),
+    ]
+    const { bytes } = await exportWithRedactions(new Map([['s1', src]]), pages, { formValues })
+    const text = texts(bytes)[0]!.text
+    expect(text).toContain('Max Mustermann')
+    expect(text).not.toContain('DE89')
+  })
+
+  it('füllt Formulare auch ohne Schwärzungen aus', async () => {
+    const d = await PDFDocument.create()
+    const p = d.addPage([600, 800])
+    d.getForm().createTextField('name').addToPage(p, { x: 100, y: 700, width: 200, height: 20 })
+    const { bytes, report } = await exportWithRedactions(
+      new Map([['s1', await d.save()]]),
+      [page('a', 0)],
+      { formValues: [new Map([['name', 'Erika']])] },
+    )
+    expect(report).toBeNull()
+    expect(texts(bytes)[0]!.text).toContain('Erika')
+  })
 })

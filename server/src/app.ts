@@ -10,11 +10,13 @@ import Anthropic from '@anthropic-ai/sdk'
 import { askDocument } from './ask.ts'
 import { SuggestError, type StreamFn } from './claude.ts'
 import type { Config } from './config.ts'
+import { suggestFormValues } from './forms.ts'
 import { recognizePage } from './ocr.ts'
 import { rewriteText } from './rewrite.ts'
 import { suggestRedactions } from './suggest.ts'
 import {
   parseAskRequest,
+  parseFormRequest,
   parseOcrRequest,
   parseRewriteRequest,
   parseSuggestRequest,
@@ -183,6 +185,15 @@ export function createHandler(deps: AppDeps) {
         return {
           body: { answer },
           log: `pages=${input.pages.length} chars=${countChars(input.pages)} turns=${input.messages.length}`,
+        }
+      }),
+    '/api/form-suggestions': (req, res) =>
+      aiEndpoint('form', req, res, async (body, signal) => {
+        const input = parseFormRequest(body, deps.config.maxChars)
+        const suggestions = await suggestFormValues(deps.stream, input, callOpts(signal))
+        return {
+          body: { suggestions },
+          log: `fields=${input.fields.length} pages=${input.pages.length} suggestions=${suggestions.length}`,
         }
       }),
     '/api/ocr': (req, res) =>

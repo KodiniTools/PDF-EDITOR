@@ -3,12 +3,14 @@
 import { ref } from 'vue'
 
 import AskPanel from './AskPanel.vue'
+import FormPanel from './FormPanel.vue'
 import RedactionPanel from './RedactionPanel.vue'
 
-type Tab = 'redact' | 'ask'
+type Tab = 'redact' | 'ask' | 'form'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'redact', label: 'Schwärzen' },
   { id: 'ask', label: 'Fragen' },
+  { id: 'form', label: 'Formular' },
 ]
 const tab = ref<Tab>('redact')
 </script>
@@ -57,6 +59,15 @@ const tab = ref<Tab>('redact')
       class="flex min-h-0 flex-1 flex-col"
     >
       <AskPanel />
+    </div>
+    <div
+      v-show="tab === 'form'"
+      id="private-panel-form"
+      role="tabpanel"
+      aria-labelledby="private-tab-form"
+      class="flex min-h-0 flex-1 flex-col"
+    >
+      <FormPanel />
     </div>
   </aside>
 </template>

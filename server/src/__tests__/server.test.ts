@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 
 import { askDocument, buildAskParams } from '../ask.ts'
 import { createHandler, toHttpError } from '../app.ts'
+import { buildFormParams, sanitizeSuggestions, suggestFormValues } from '../forms.ts'
 import { buildOcrParams, recognizePage, sanitizeOcr } from '../ocr.ts'
 import { buildRewriteParams, rewriteText, sanitizeRewrite } from '../rewrite.ts'
 import { ConfigError, DEFAULT_PORT, loadConfig } from '../config.ts'
@@ -19,6 +20,7 @@ import {
 } from '../suggest.ts'
 import {
   parseAskRequest,
+  parseFormRequest,
   parseOcrRequest,
   parseRewriteRequest,
   parseSuggestRequest,
@@ -384,6 +386,108 @@ describe('ocr', () => {
   })
 })
 
+const FORM = {
+  profile: 'Max Mustermann, geb. 01.02.1980, Hauptstr. 5, 10115 Berlin',
+  fields: [
+    { id: 'f1', type: 'text', label: 'name', context: 'Name, Vorname', page: 1, maxLength: 10 },
+    { id: 'f2', type: 'checkbox', label: 'verheiratet', context: '', page: 1 },
+    {
+      id: 'f3',
+      type: 'choice',
+      label: 'land',
+      context: 'Land',
+      page: 1,
+      options: ['Deutschland', 'Österreich'],
+    },
+    { id: 'f4', type: 'text', label: 'bem', context: '', page: 1, multiline: true },
+  ],
+}
+
+describe('form-suggestions', () => {
+  it('validiert Felder und verlangt Stammdaten oder Formulartext', () => {
+    const r = parseFormRequest(FORM, 10_000)
+    assert.equal(r.fields.length, 4)
+    assert.deepEqual(r.pages, [])
+    for (const bad of [
+      { ...FORM, fields: [] },
+      { ...FORM, fields: [{ ...FORM.fields[0], type: 'signature' }] },
+      { ...FORM, fields: [FORM.fields[0], FORM.fields[0]] },
+      { ...FORM, fields: [{ ...FORM.fields[2], options: [] }] },
+      { ...FORM, fields: [{ ...FORM.fields[0], page: 0 }] },
+      { ...FORM, profile: 'x'.repeat(20_001) },
+      { ...FORM, profile: '  ' },
+    ]) {
+      assert.throws(() => parseFormRequest(bad, 10_000), ValidationError)
+    }
+    assert.equal(
+      parseFormRequest({ ...FORM, profile: '', pages: REQ.pages }, 10_000).pages.length,
+      2,
+    )
+  })
+
+  it('schickt Stammdaten, Felder und Formulartext', () => {
+    const p = buildFormParams(parseFormRequest({ ...FORM, pages: REQ.pages }, 10_000), {
+      model: 'm',
+      effort: 'medium',
+    })
+    const content = String(p.messages[0]?.content)
+    assert.match(content, /<stammdaten>\nMax Mustermann/)
+    assert.match(content, /"text_daneben": "Name, Vorname"/)
+    assert.match(content, /<page number="1">/)
+    assert.equal(p.output_config?.format?.type, 'json_schema')
+  })
+
+  it('prüft Vorschläge je Feldtyp', () => {
+    const req = parseFormRequest(FORM, 10_000)
+    const out = sanitizeSuggestions(
+      {
+        suggestions: [
+          { id: 'f1', value: 'Mustermann, Max', reason: 'Stammdaten' },
+          { id: 'f1', value: 'doppelt', reason: '' },
+          { id: 'f2', value: 'Ja', reason: '' },
+          { id: 'f3', value: 'deutschland', reason: '' },
+          { id: 'f4', value: 'a\nb', reason: '' },
+          { id: 'f9', value: 'unbekannt', reason: '' },
+          { id: 'f3', value: 'Schweiz', reason: '' },
+        ],
+      },
+      req,
+    )
+    assert.deepEqual(
+      out.map((s) => [s.id, s.value]),
+      [
+        ['f1', 'Mustermann'],
+        ['f2', 'true'],
+        ['f3', 'Deutschland'],
+        ['f4', 'a\nb'],
+      ],
+    )
+    const reqNoMulti = { ...req, fields: req.fields.map((f) => ({ ...f, multiline: false })) }
+    assert.equal(
+      sanitizeSuggestions(
+        { suggestions: [{ id: 'f4', value: 'a\n b', reason: '' }] },
+        reqNoMulti,
+      )[0]?.value,
+      'a b',
+    )
+    assert.deepEqual(
+      sanitizeSuggestions({ suggestions: [{ id: 'f2', value: 'vielleicht', reason: '' }] }, req),
+      [],
+    )
+  })
+
+  it('liefert Vorschläge', async () => {
+    const out = await suggestFormValues(
+      fakeStream(
+        message(JSON.stringify({ suggestions: [{ id: 'f3', value: 'Österreich', reason: 'r' }] })),
+      ),
+      parseFormRequest(FORM, 10_000),
+      { model: 'm', effort: 'medium', signal: new AbortController().signal },
+    )
+    assert.deepEqual(out, [{ id: 'f3', value: 'Österreich', reason: 'r' }])
+  })
+})
+
 describe('toHttpError', () => {
   it('bildet SDK-Fehler auf Status ab', () => {
     assert.equal(
@@ -503,6 +607,19 @@ describe('HTTP', () => {
     assert.ok(logs.some((l) => l.startsWith('ocr ok size=1000x1400') && l.includes('lines=1')))
     assert.ok(!logs.join('\n').includes('Geheim'))
     assert.ok(!logs.join('\n').includes('AAAA'))
+  })
+
+  it('schlägt Formularwerte über /api/form-suggestions vor, ohne Stammdaten zu loggen', async () => {
+    next = message(JSON.stringify({ suggestions: [{ id: 'f1', value: 'Max', reason: 'r' }] }))
+    const res = await fetch(`${base}/api/form-suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(FORM),
+    })
+    assert.equal(res.status, 200)
+    assert.deepEqual(await res.json(), { suggestions: [{ id: 'f1', value: 'Max', reason: 'r' }] })
+    assert.ok(logs.some((l) => l.startsWith('form ok fields=4')))
+    assert.ok(!logs.join('\n').includes('Hauptstr'))
   })
 
   it('reicht KI-Fehler als verständliche Meldung durch', async () => {

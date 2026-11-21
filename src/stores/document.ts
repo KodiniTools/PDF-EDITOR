@@ -312,8 +312,12 @@ export const useDocumentStore = defineStore('document', () => {
       if (__PRIVATE__) {
         // Privater Build: echte Schwärzung (MuPDF, lazy geladen). Im öffentlichen
         // Build entfällt dieser Zweig samt Import vollständig.
-        const { exportWithRedactions } = await import('@/private/redaction/exportRedacted')
-        return (await exportWithRedactions(sourceBytes, pages.value)).bytes
+        const [{ exportWithRedactions }, { useFormStore }] = await Promise.all([
+          import('@/private/redaction/exportRedacted'),
+          import('@/private/stores/forms'),
+        ])
+        const formValues = useFormStore().valuesForExport(pages.value)
+        return (await exportWithRedactions(sourceBytes, pages.value, { formValues })).bytes
       }
       return await exportPdf(sourceBytes, pages.value)
     } catch (err) {

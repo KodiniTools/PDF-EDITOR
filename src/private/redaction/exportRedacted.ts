@@ -5,6 +5,8 @@
  * „[geschwärzt]“ auf der Fläche) nicht mit entfernt werden:
  *  1. pdf-lib: Seiten in Reihenfolge/Drehung ohne Annotationen exportieren,
  *     MuPDF: Inhalt unter allen Schwärzungsflächen entfernen, Metadaten löschen.
+ *     Danach ggf. Formularfelder ausfüllen und einbetten (MuPDF, forms/fill.ts) –
+ *     nach dem Schwärzen, damit Felder in geschwärzten Bereichen schon entfernt sind.
  *  2. pdf-lib: das bereinigte PDF als einzige Quelle nehmen und alle Annotationen
  *     einzeichnen – die Schwärzungsflächen selbst als schwarze Rechtecke.
  */
@@ -12,6 +14,7 @@ import { normalizeRotation } from '@/lib/geometry'
 import { exportPdf } from '@/services/pdfExport'
 import type { Annotation, CoverAnnotation, PageRef } from '@/types/pdf'
 
+import { fillFormFields, type FieldValues } from '../forms/fill'
 import { applyTrueRedactions, type RedactionRect, type RedactionReport } from './trueRedaction'
 
 /** Quell-ID des Zwischenergebnisses im zweiten Durchgang. */
@@ -25,25 +28,40 @@ export function hasRedactions(pages: readonly PageRef[]): boolean {
   return pages.some((p) => p.annotations.some(isRedaction))
 }
 
+export interface PrivateExportOptions {
+  /** Formularwerte je Seite (Index = Position in `pages`); leer = nichts ausfüllen. */
+  formValues?: ReadonlyArray<FieldValues | undefined>
+}
+
 export async function exportWithRedactions(
   sources: ReadonlyMap<string, Uint8Array>,
   pages: readonly PageRef[],
+  options: PrivateExportOptions = {},
 ): Promise<{ bytes: Uint8Array; report: RedactionReport | null }> {
-  if (!hasRedactions(pages)) {
+  const formValues = options.formValues ?? []
+  const fillForms = formValues.some((v) => v !== undefined && v.size > 0)
+  if (!hasRedactions(pages) && !fillForms) {
     return { bytes: await exportPdf(sources, pages), report: null }
   }
 
-  // 1. Nur Seiten (Reihenfolge, Drehung), dann schwärzen.
-  const bare = await exportPdf(
+  // 1. Nur Seiten (Reihenfolge, Drehung), dann schwärzen und Formulare ausfüllen.
+  let intermediate = await exportPdf(
     sources,
     pages.map((p) => ({ ...p, annotations: [] })),
   )
-  const rects: RedactionRect[][] = pages.map((p) =>
-    p.annotations.filter(isRedaction).map(({ x, y, width, height }) => ({ x, y, width, height })),
-  )
-  const { bytes: redacted, report } = await applyTrueRedactions(bare, rects, {
-    blackBoxes: false,
-  })
+  let report: RedactionReport | null = null
+  if (hasRedactions(pages)) {
+    const rects: RedactionRect[][] = pages.map((p) =>
+      p.annotations.filter(isRedaction).map(({ x, y, width, height }) => ({ x, y, width, height })),
+    )
+    const result = await applyTrueRedactions(intermediate, rects, { blackBoxes: false })
+    intermediate = result.bytes
+    report = result.report
+  }
+  if (fillForms) {
+    intermediate = (await fillFormFields(intermediate, formValues)).bytes
+  }
+  const redacted = intermediate
 
   // 2. Annotationen auf das bereinigte PDF zeichnen. Die Drehung steckt bereits im
   //    Zwischenergebnis, daher baseRotation = Gesamtdrehung, rotation = 0.

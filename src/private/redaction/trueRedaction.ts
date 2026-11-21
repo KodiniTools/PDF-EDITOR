@@ -40,7 +40,7 @@ type Rect = [number, number, number, number]
 
 let mupdfPromise: Promise<typeof MuPDF> | null = null
 /** MuPDF (≈10 MB WASM) erst beim ersten Export laden. */
-function loadMupdf(): Promise<typeof MuPDF> {
+export function loadMupdf(): Promise<typeof MuPDF> {
   mupdfPromise ??= import('mupdf').catch((err: unknown) => {
     mupdfPromise = null
     throw new RedactionError('Die Schwärzungs-Engine (MuPDF) konnte nicht geladen werden.', {

@@ -207,3 +207,99 @@ export function parseOcrRequest(body: unknown): OcrRequest {
     height: height as number,
   }
 }
+
+export const FIELD_TYPES = ['text', 'checkbox', 'radio', 'choice'] as const
+export type FieldType = (typeof FIELD_TYPES)[number]
+
+export interface FormFieldInput {
+  id: string
+  type: FieldType
+  /** Feldname, Tooltip (TU) bzw. Beschriftung daneben. */
+  label: string
+  /** Text in der Nähe des Felds (Beschriftung auf der Seite). */
+  context: string
+  page: number
+  options?: string[]
+  multiline?: boolean
+  maxLength?: number
+}
+
+export interface FormRequest {
+  fields: FormFieldInput[]
+  /** Stammdaten des Nutzers, frei formuliert. */
+  profile: string
+  /** Optional: Text der Seiten mit Feldern (Hinweise im Formular). */
+  pages: PageText[]
+}
+
+export const MAX_FIELDS = 500
+export const MAX_PROFILE_LENGTH = 20_000
+
+function str(v: unknown, max: number, name: string, required = false): string {
+  if (v === undefined && !required) return ''
+  if (typeof v !== 'string' || v.length > max || (required && !v.trim())) {
+    throw new ValidationError(`"${name}" muss ein Text mit höchstens ${max} Zeichen sein.`)
+  }
+  return v
+}
+
+/** POST /api/form-suggestions: Felder, Stammdaten und optional Seitentext. */
+export function parseFormRequest(body: unknown, maxChars: number): FormRequest {
+  if (typeof body !== 'object' || body === null) {
+    throw new ValidationError('Erwartet: { "fields": [...], "profile": "…" }')
+  }
+  const { fields, profile, pages } = body as Record<string, unknown>
+  if (!Array.isArray(fields) || fields.length === 0 || fields.length > MAX_FIELDS) {
+    throw new ValidationError(`"fields" muss 1 bis ${MAX_FIELDS} Einträge haben.`)
+  }
+  const ids = new Set<string>()
+  const parsed = fields.map((f, i): FormFieldInput => {
+    if (typeof f !== 'object' || f === null) throw new ValidationError(`Feld ${i + 1}: ungültig.`)
+    const r = f as Record<string, unknown>
+    const id = str(r.id, 100, 'id', true)
+    if (ids.has(id)) throw new ValidationError(`Feld-ID "${id}" ist doppelt.`)
+    ids.add(id)
+    if (!FIELD_TYPES.includes(r.type as FieldType)) {
+      throw new ValidationError(`Feld ${id}: "type" muss einer von ${FIELD_TYPES.join(', ')} sein.`)
+    }
+    const type = r.type as FieldType
+    if (typeof r.page !== 'number' || !Number.isInteger(r.page) || r.page < 1) {
+      throw new ValidationError(`Feld ${id}: "page" muss eine positive ganze Zahl sein.`)
+    }
+    const out: FormFieldInput = {
+      id,
+      type,
+      label: str(r.label, 300, 'label'),
+      context: str(r.context, 500, 'context'),
+      page: r.page,
+    }
+    if (type === 'choice' || type === 'radio') {
+      if (
+        !Array.isArray(r.options) ||
+        r.options.length === 0 ||
+        r.options.length > 200 ||
+        !r.options.every((o) => typeof o === 'string' && o.length <= 200)
+      ) {
+        throw new ValidationError(`Feld ${id}: "options" muss 1 bis 200 Texte enthalten.`)
+      }
+      out.options = r.options as string[]
+    }
+    if (r.multiline !== undefined) out.multiline = r.multiline === true
+    if (r.maxLength !== undefined) {
+      if (typeof r.maxLength !== 'number' || !Number.isInteger(r.maxLength) || r.maxLength < 1) {
+        throw new ValidationError(`Feld ${id}: "maxLength" muss eine positive ganze Zahl sein.`)
+      }
+      out.maxLength = r.maxLength
+    }
+    return out
+  })
+  const text = str(profile, MAX_PROFILE_LENGTH, 'profile')
+  const pageTexts =
+    pages === undefined || (Array.isArray(pages) && pages.length === 0)
+      ? []
+      : parsePages({ pages }, maxChars)
+  if (!text.trim() && pageTexts.length === 0) {
+    throw new ValidationError('Bitte Stammdaten hinterlegen.')
+  }
+  return { fields: parsed, profile: text, pages: pageTexts }
+}
