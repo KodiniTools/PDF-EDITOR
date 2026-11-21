@@ -1,8 +1,10 @@
 /**
- * Kosten der Anthropic-Organisation (Usage & Cost Analytics, Beta) für den
- * Kostenrechner im Browser. Braucht einen eigenen Admin-Key (ANTHROPIC_ADMIN_KEY),
- * der nur auf dem Server bleibt. Die Daten kommen 4–24 h verzögert; Zahlungen und
- * Guthaben liefert die API nicht (die trägt der Browser selbst ein).
+ * Kosten für den Kostenrechner im Browser, aus einer von zwei Quellen:
+ * - „anthropic“: Kosten der ganzen Organisation (Usage & Cost Analytics, Beta).
+ *   Braucht einen Admin-Key (ANTHROPIC_ADMIN_KEY), kommt 4–24 h verzögert.
+ * - „local“: eigene Zählung dieser App (usage.ts), sofort, nach Listenpreis geschätzt.
+ * Funktioniert der Admin-Key nicht (fehlt, 401/403), gilt automatisch „local“.
+ * Zahlungen und Guthaben liefert keine API (die trägt der Browser selbst ein).
  *
  * Abfrage: Tagesbuckets (UTC), aufgeteilt nach Modell, in Abschnitten von ≤ 31 Tagen
  * (API-Grenze), mit Paging. Ergebnisse werden kurz zwischengespeichert, damit
@@ -44,6 +46,10 @@ export interface CostDay {
 
 export interface CostReport {
   currency: 'USD'
+  /** anthropic = Abrechnung der Organisation; local = eigene Schätzung dieser App. */
+  source: 'anthropic' | 'local'
+  /** Hinweis an die Nutzerin/den Nutzer, z. B. warum die eigene Zählung gilt. */
+  notice: string | null
   from: string
   /** Ende des abgefragten Bereichs (exklusiv), volle Stunde UTC. */
   to: string
@@ -146,6 +152,8 @@ export async function fetchCostReport(
 
   return {
     currency: 'USD',
+    source: 'anthropic',
+    notice: null,
     from,
     to: new Date(Math.max(end, start)).toISOString(),
     refreshedAt,
@@ -186,6 +194,84 @@ export function createCostService(
         cache.delete(key)
       }
       return report
+    },
+  }
+}
+
+/** Anthropic lehnt den Key ab (kein Admin-Key, keine Berechtigung). */
+function isKeyRejected(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status
+  return status === 401 || status === 403
+}
+
+/** Nach einer Ablehnung erst nach dieser Zeit erneut versuchen (Key evtl. getauscht). */
+export const ADMIN_RETRY_MS = 60 * 60_000
+
+export interface CombinedCostOptions {
+  /** Anthropic-Kosten (nur mit ANTHROPIC_ADMIN_KEY). */
+  anthropic?: CostService
+  /** Eigene Zählung. */
+  local: { days(from: string): CostDay[] }
+  clock?: () => number
+  log?: (line: string) => void
+}
+
+/**
+ * Anthropic-Kosten, wenn ein funktionierender Admin-Key da ist; sonst (oder bei
+ * einem Ausfall) die eigene Zählung mit Hinweis.
+ */
+export function createCombinedCostService(opts: CombinedCostOptions): CostService & {
+  source(): 'anthropic' | 'local'
+} {
+  const clock = opts.clock ?? Date.now
+  const log = opts.log ?? ((l: string) => console.log(l))
+  let rejectedUntil = 0
+
+  function local(rawFrom: string | null, notice: string | null): CostReport {
+    const now = clock()
+    const from = parseFrom(rawFrom, now)
+    const iso = new Date(now).toISOString()
+    return {
+      currency: 'USD',
+      source: 'local',
+      notice,
+      from,
+      to: iso,
+      refreshedAt: iso,
+      fetchedAt: iso,
+      days: opts.local.days(from),
+    }
+  }
+
+  return {
+    source: () => (opts.anthropic && clock() >= rejectedUntil ? 'anthropic' : 'local'),
+    async get(rawFrom, refresh) {
+      if (!opts.anthropic) return local(rawFrom, null)
+      if (clock() < rejectedUntil) {
+        return local(
+          rawFrom,
+          'Der Admin-Key wurde von Anthropic abgelehnt; es gilt die eigene Zählung.',
+        )
+      }
+      try {
+        return await opts.anthropic.get(rawFrom, refresh)
+      } catch (err) {
+        if (err instanceof CostRequestError) throw err
+        if (isKeyRejected(err)) {
+          rejectedUntil = clock() + ADMIN_RETRY_MS
+          log(
+            `costs: Admin-Key abgelehnt (HTTP ${(err as { status: number }).status}), nutze eigene Zählung`,
+          )
+          return local(
+            rawFrom,
+            'Der Admin-Key wurde von Anthropic abgelehnt; es gilt die eigene Zählung.',
+          )
+        }
+        log(
+          `costs: Anthropic nicht erreichbar (${err instanceof Error ? err.name : String(err)}), nutze eigene Zählung`,
+        )
+        return local(rawFrom, 'Anthropic-Kosten gerade nicht abrufbar; es gilt die eigene Zählung.')
+      }
     },
   }
 }

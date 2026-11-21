@@ -8,7 +8,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import Anthropic from '@anthropic-ai/sdk'
 
 import { askDocument } from './ask.ts'
-import { SuggestError, trackUsage, type CallOptions, type StreamFn } from './claude.ts'
+import {
+  SuggestError,
+  trackUsage,
+  type CallOptions,
+  type StreamFn,
+  type UsageMeta,
+} from './claude.ts'
 import type { Config } from './config.ts'
 import { CostRequestError, type CostService } from './costs.ts'
 import { suggestFormValues } from './forms.ts'
@@ -38,8 +44,10 @@ export interface AppDeps {
   log?: (line: string) => void
   /** Gleichzeitige Analysen (Schutz vor versehentlichem Mehrfachklick/Kosten). */
   maxConcurrent?: number
-  /** Kostenrechner; fehlt, wenn kein ANTHROPIC_ADMIN_KEY gesetzt ist. */
-  costs?: CostService
+  /** Kostenrechner (Anthropic-Kosten oder eigene Zählung); fehlt = aus. */
+  costs?: CostService & { source?: () => 'anthropic' | 'local' }
+  /** Eigene Kostenzählung: erhält Modell/Tokens jeder abgerechneten Anfrage. */
+  usage?: { record(meta: UsageMeta): void }
 }
 
 class HttpError extends Error {
@@ -172,10 +180,10 @@ export function createHandler(deps: AppDeps) {
     })
     const timeout = AbortSignal.timeout(deps.config.timeoutMs)
     const signal = AbortSignal.any([client.signal, timeout])
+    const tracked = trackUsage(deps.stream)
     try {
       const body = await readJson(req, deps.config.maxBodyBytes)
       const model = parseModel(body, deps.config.models, deps.config.model)
-      const tracked = trackUsage(deps.stream)
       const result = await run(body, {
         stream: tracked.stream,
         opts: { model, effort: deps.config.effort, signal },
@@ -197,6 +205,16 @@ export function createHandler(deps: AppDeps) {
       send(res, httpErr.status, { error: httpErr.message })
     } finally {
       running--
+      // Abgerechnet ist, was Claude geantwortet hat – auch wenn die Antwort danach
+      // verworfen wurde (z. B. Validierung, Abbruch).
+      const meta = tracked.meta()
+      if (meta) {
+        try {
+          deps.usage?.record(meta)
+        } catch (err) {
+          log(`usage: Zählen fehlgeschlagen: ${String(err)}`)
+        }
+      }
     }
   }
 
@@ -308,6 +326,7 @@ export function createHandler(deps: AppDeps) {
           model: deps.config.model,
           models: deps.config.models,
           costs: !!deps.costs,
+          costSource: deps.costs?.source?.() ?? null,
         })
         return
       }

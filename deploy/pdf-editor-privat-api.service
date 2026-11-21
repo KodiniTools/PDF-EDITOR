@@ -43,6 +43,10 @@ AmbientCapabilities=
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 SystemCallArchitectures=native
 UMask=0077
+# Eigene Kostenzählung (usage.json): /var/lib/pdf-editor-privat-api, überlebt
+# Neustarts und Deploys. systemd setzt STATE_DIRECTORY für den Dienst.
+StateDirectory=pdf-editor-privat-api
+StateDirectoryMode=0700
 MemoryMax=512M
 
 [Install]

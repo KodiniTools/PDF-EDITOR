@@ -52,6 +52,15 @@ describe('Kosten: Auswertung', () => {
       ],
     })
     expect(r.days).toEqual([{ date: '2026-11-02', total: 2, models: { m: 2 } }])
+    expect([r.source, r.notice]).toEqual(['anthropic', null]) // älterer Server ohne Feld
+    const local = parseReport({
+      source: 'local',
+      notice: 'Admin-Key abgelehnt',
+      from: '2026-11-01',
+      to: 'x',
+      days: [],
+    })
+    expect([local.source, local.notice]).toEqual(['local', 'Admin-Key abgelehnt'])
     expect(parseSettings('kaputt', '2026-11-21')).toEqual({
       since: '2026-11-01',
       payments: [],

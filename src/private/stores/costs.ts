@@ -24,6 +24,8 @@ const COSTS_URL = `${import.meta.env.BASE_URL}api/costs`
 const REQUEST_TIMEOUT_MS = 90_000
 /** Automatisch neu laden, wenn die Daten älter sind (Server cacht 10 min). */
 export const AUTO_REFRESH_MS = 10 * 60_000
+/** Eigene Zählung ist sofort aktuell und billig abzufragen. */
+export const LOCAL_REFRESH_MS = 30_000
 
 function readStored(): string | null {
   try {

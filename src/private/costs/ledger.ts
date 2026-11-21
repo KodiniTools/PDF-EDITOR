@@ -14,6 +14,10 @@ export interface CostDay {
 }
 
 export interface CostReport {
+  /** anthropic = Abrechnung der Organisation (verzögert); local = eigene Zählung dieser App. */
+  source: 'anthropic' | 'local'
+  /** Hinweis vom Server, z. B. warum die eigene Zählung gilt. */
+  notice: string | null
   from: string
   to: string
   /** Bis hierhin sind die Daten laut Anthropic vollständig. */
@@ -75,6 +79,9 @@ export function parseReport(body: unknown): CostReport {
     return [{ date, total: t, models: m }]
   })
   return {
+    // Ältere Server ohne Feld lieferten nur Anthropic-Kosten.
+    source: b.source === 'local' ? 'local' : 'anthropic',
+    notice: typeof b.notice === 'string' && b.notice ? b.notice : null,
     from: b.from,
     to: b.to,
     refreshedAt: typeof b.refreshedAt === 'string' ? b.refreshedAt : null,

@@ -8,7 +8,8 @@ import Anthropic from '@anthropic-ai/sdk'
 
 import { createHandler } from './app.ts'
 import { ConfigError, loadConfig } from './config.ts'
-import { createCostService } from './costs.ts'
+import { createCombinedCostService, createCostService } from './costs.ts'
+import { createUsageStore } from './usage.ts'
 
 function main(): void {
   let config
@@ -28,7 +29,7 @@ function main(): void {
   const admin = config.adminKey
     ? new Anthropic({ apiKey: config.adminKey, timeout: 30_000, maxRetries: 2 })
     : null
-  const costs = admin
+  const anthropicCosts = admin
     ? createCostService(({ signal, ...query }) =>
         admin.beta.organization.analytics.cost.list(
           {
@@ -43,10 +44,14 @@ function main(): void {
         ),
       )
     : undefined
+  // Eigene Zählung (Tokens × Listenpreis), dauerhaft in config.usageFile.
+  const usage = createUsageStore({ file: config.usageFile })
+  const costs = createCombinedCostService({ anthropic: anthropicCosts, local: usage })
   const handler = createHandler({
     config,
     stream: (params, options) => client.beta.messages.stream(params, options),
     costs,
+    usage,
   })
 
   const server = createServer((req, res) => void handler(req, res))
@@ -64,13 +69,14 @@ function main(): void {
   })
   server.listen(config.port, config.host, () => {
     console.log(
-      `pdf-editor-privat-api hört auf http://${config.host}:${config.port} (Modell ${config.model}, effort ${config.effort}, Kostenrechner ${costs ? 'an' : 'aus'})`,
+      `pdf-editor-privat-api hört auf http://${config.host}:${config.port} (Modell ${config.model}, effort ${config.effort}, Kosten: ${admin ? 'Admin-Key, sonst ' : ''}eigene Zählung in ${config.usageFile})`,
     )
   })
 
   const shutdown = (signal: string) => {
     console.log(`${signal} empfangen, beende …`)
-    server.close(() => process.exit(0))
+    void usage.flush() // sofort sichern, falls das Beenden per Zeitlimit endet
+    server.close(() => void usage.flush().finally(() => process.exit(0)))
     setTimeout(() => process.exit(0), 10_000).unref()
   }
   process.on('SIGTERM', () => shutdown('SIGTERM'))
