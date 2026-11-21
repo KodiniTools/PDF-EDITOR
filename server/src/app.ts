@@ -10,8 +10,15 @@ import Anthropic from '@anthropic-ai/sdk'
 import { askDocument } from './ask.ts'
 import { SuggestError, type StreamFn } from './claude.ts'
 import type { Config } from './config.ts'
+import { rewriteText } from './rewrite.ts'
 import { suggestRedactions } from './suggest.ts'
-import { parseAskRequest, parseSuggestRequest, ValidationError, type PageText } from './validate.ts'
+import {
+  parseAskRequest,
+  parseRewriteRequest,
+  parseSuggestRequest,
+  ValidationError,
+  type PageText,
+} from './validate.ts'
 
 export interface AppDeps {
   config: Pick<
@@ -174,6 +181,15 @@ export function createHandler(deps: AppDeps) {
         return {
           body: { answer },
           log: `pages=${input.pages.length} chars=${countChars(input.pages)} turns=${input.messages.length}`,
+        }
+      }),
+    '/api/rewrite': (req, res) =>
+      aiEndpoint('rewrite', req, res, async (body, signal) => {
+        const input = parseRewriteRequest(body)
+        const text = await rewriteText(deps.stream, input, callOpts(signal))
+        return {
+          body: { text },
+          log: `mode=${input.mode}${input.language ? `:${input.language}` : ''} chars=${input.text.length}`,
         }
       }),
   }

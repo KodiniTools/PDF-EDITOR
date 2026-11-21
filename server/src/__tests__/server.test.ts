@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 
 import { askDocument, buildAskParams } from '../ask.ts'
 import { createHandler, toHttpError } from '../app.ts'
+import { buildRewriteParams, rewriteText, sanitizeRewrite } from '../rewrite.ts'
 import { ConfigError, DEFAULT_PORT, loadConfig } from '../config.ts'
 import {
   buildParams,
@@ -15,7 +16,12 @@ import {
   suggestRedactions,
   type StreamFn,
 } from '../suggest.ts'
-import { parseAskRequest, parseSuggestRequest, ValidationError } from '../validate.ts'
+import {
+  parseAskRequest,
+  parseRewriteRequest,
+  parseSuggestRequest,
+  ValidationError,
+} from '../validate.ts'
 
 type BetaMessage = Anthropic.Beta.Messages.BetaMessage
 
@@ -250,6 +256,70 @@ describe('buildAskParams / askDocument', () => {
   })
 })
 
+describe('rewrite', () => {
+  const OPTS = { model: 'claude-opus-5-5', effort: 'medium' as const }
+
+  it('validiert Modus, Sprache und Länge', () => {
+    assert.deepEqual(parseRewriteRequest({ text: 'Hallo', mode: 'correct' }), {
+      text: 'Hallo',
+      mode: 'correct',
+      singleLine: false,
+    })
+    assert.equal(
+      parseRewriteRequest({ text: 'Hallo', mode: 'translate', language: 'en', singleLine: true })
+        .language,
+      'en',
+    )
+    for (const bad of [
+      null,
+      { text: ' ', mode: 'correct' },
+      { text: 'x', mode: 'hack' },
+      { text: 'x', mode: 'translate' },
+      { text: 'x', mode: 'translate', language: 'zh' },
+      { text: 'x', mode: 'correct', singleLine: 'ja' },
+    ]) {
+      assert.throws(() => parseRewriteRequest(bad), ValidationError)
+    }
+    assert.throws(
+      () => parseRewriteRequest({ text: 'x'.repeat(4001), mode: 'correct' }),
+      (e: unknown) => e instanceof ValidationError && e.status === 413,
+    )
+  })
+
+  it('baut die Anweisung je Modus', () => {
+    const p = buildRewriteParams(
+      { text: 'Hallo Welt', mode: 'translate', language: 'fr', singleLine: true },
+      OPTS,
+    )
+    const content = String(p.messages[0]?.content)
+    assert.match(content, /Französisch/)
+    assert.match(content, /genau einer Zeile/)
+    assert.match(content, /<text>\nHallo Welt\n<\/text>/)
+    assert.equal(p.output_config?.effort, 'low')
+    assert.equal(p.output_config?.format?.type, 'json_schema')
+    const plain = buildRewriteParams({ text: 'x', mode: 'formal', singleLine: false }, OPTS)
+    assert.doesNotMatch(String(plain.messages[0]?.content), /genau einer Zeile/)
+  })
+
+  it('bereinigt das Ergebnis', () => {
+    const req = { text: 'Hallo Welt', mode: 'correct' as const, singleLine: true }
+    assert.equal(sanitizeRewrite({ text: ' Hallo\r\n Welt ' }, req), 'Hallo Welt')
+    assert.equal(sanitizeRewrite({ text: 'a\nb' }, { ...req, singleLine: false }), 'a\nb')
+    assert.throws(() => sanitizeRewrite({ text: '  ' }, req), SuggestError)
+    assert.throws(() => sanitizeRewrite({ text: 'x'.repeat(500) }, req), SuggestError)
+    assert.throws(() => sanitizeRewrite({}, req), SuggestError)
+  })
+
+  it('liefert den neuen Text', async () => {
+    const out = await rewriteText(
+      fakeStream(message(JSON.stringify({ text: 'Hello world' }))),
+      { text: 'Hallo Welt', mode: 'translate', language: 'en', singleLine: false },
+      { ...OPTS, signal: new AbortController().signal },
+    )
+    assert.equal(out, 'Hello world')
+  })
+})
+
 describe('toHttpError', () => {
   it('bildet SDK-Fehler auf Status ab', () => {
     assert.equal(
@@ -342,6 +412,19 @@ describe('HTTP', () => {
     assert.ok(logs.some((l) => l.startsWith('ask ok') && l.includes('turns=3')))
     assert.ok(!logs.join('\n').includes('Absender'))
     assert.equal((await fetch(`${base}/api/ask`)).status, 405)
+  })
+
+  it('schreibt Text über /api/rewrite um, ohne ihn zu loggen', async () => {
+    next = message(JSON.stringify({ text: 'Sehr geehrte Damen und Herren' }))
+    const res = await fetch(`${base}/api/rewrite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Hallo Leute', mode: 'formal' }),
+    })
+    assert.equal(res.status, 200)
+    assert.deepEqual(await res.json(), { text: 'Sehr geehrte Damen und Herren' })
+    assert.ok(logs.some((l) => l.startsWith('rewrite ok mode=formal chars=11')))
+    assert.ok(!logs.join('\n').includes('Leute'))
   })
 
   it('reicht KI-Fehler als verständliche Meldung durch', async () => {

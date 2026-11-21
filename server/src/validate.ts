@@ -119,3 +119,51 @@ export function parseAskRequest(body: unknown, maxChars: number): AskRequest {
   }
   return { pages, messages }
 }
+
+export const REWRITE_MODES = ['correct', 'shorter', 'formal', 'simple', 'translate'] as const
+export type RewriteMode = (typeof REWRITE_MODES)[number]
+
+/** Zielsprachen, deren Zeichen die PDF-Standardschriften (WinAnsi) darstellen können. */
+export const REWRITE_LANGUAGES = ['de', 'en', 'fr', 'es', 'it', 'nl', 'pt'] as const
+export type RewriteLanguage = (typeof REWRITE_LANGUAGES)[number]
+
+export interface RewriteRequest {
+  text: string
+  mode: RewriteMode
+  /** Nur bei mode 'translate'. */
+  language?: RewriteLanguage
+  /** Ersetzt eine vorhandene PDF-Zeile → Ergebnis einzeilig, ähnlich lang. */
+  singleLine: boolean
+}
+
+export const MAX_REWRITE_LENGTH = 4_000
+
+/** POST /api/rewrite: einen Textabschnitt umschreiben oder übersetzen. */
+export function parseRewriteRequest(body: unknown): RewriteRequest {
+  if (typeof body !== 'object' || body === null) {
+    throw new ValidationError('Erwartet: { "text": "…", "mode": "correct" }')
+  }
+  const { text, mode, language, singleLine } = body as Record<string, unknown>
+  if (typeof text !== 'string' || !text.trim()) throw new ValidationError('Text fehlt.')
+  if (text.length > MAX_REWRITE_LENGTH) {
+    throw new ValidationError(`Höchstens ${MAX_REWRITE_LENGTH} Zeichen.`, 413)
+  }
+  if (!REWRITE_MODES.includes(mode as RewriteMode)) {
+    throw new ValidationError(`"mode" muss einer von ${REWRITE_MODES.join(', ')} sein.`)
+  }
+  if (singleLine !== undefined && typeof singleLine !== 'boolean') {
+    throw new ValidationError('"singleLine" muss true oder false sein.')
+  }
+  const req: RewriteRequest = {
+    text,
+    mode: mode as RewriteMode,
+    singleLine: singleLine ?? false,
+  }
+  if (mode === 'translate') {
+    if (!REWRITE_LANGUAGES.includes(language as RewriteLanguage)) {
+      throw new ValidationError(`"language" muss einer von ${REWRITE_LANGUAGES.join(', ')} sein.`)
+    }
+    req.language = language as RewriteLanguage
+  }
+  return req
+}
