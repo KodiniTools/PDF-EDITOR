@@ -121,7 +121,35 @@ watch(
     languageMenu.value = false
   },
 )
-onBeforeUnmount(cancel)
+/**
+ * Kürzel, auch während im Textfeld getippt wird: Alt+1–4 Modi, Alt+5 Übersetzen,
+ * Alt+Enter übernehmen, Alt+⌫ verwerfen/abbrechen. e.code, weil Alt+Ziffer auf dem
+ * Mac Sonderzeichen liefert.
+ */
+function onKey(e: KeyboardEvent): void {
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+  const modeIndex = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code)
+  const canRun = !busy.value && !tooLong.value && !!props.annotation.text.trim()
+  if (modeIndex >= 0) {
+    const mode = MODES[modeIndex]?.[0]
+    if (mode && canRun) void run(mode)
+  } else if (e.code === 'Digit5') {
+    if (canRun) void run('translate')
+  } else if (e.key === 'Enter') {
+    apply()
+  } else if (e.key === 'Backspace') {
+    if (busy.value) cancel()
+    else result.value = null
+  } else {
+    return
+  }
+  e.preventDefault()
+}
+window.addEventListener('keydown', onKey, true)
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey, true)
+  cancel()
+})
 </script>
 
 <template>
@@ -142,6 +170,7 @@ onBeforeUnmount(cancel)
         class="ta-btn"
         :disabled="busy || tooLong || !annotation.text.trim()"
         :data-testid="`assist-${mode}`"
+        :title="`${label} (Alt+${MODES.findIndex(([m]) => m === mode) + 1})`"
         @click="run(mode)"
       >
         {{ label }}
@@ -188,6 +217,7 @@ onBeforeUnmount(cancel)
           class="ta-btn"
           :disabled="busy || tooLong || !annotation.text.trim()"
           data-testid="assist-translate"
+          title="Übersetzen (Alt+5)"
           @click="run('translate')"
         >
           Übersetzen
@@ -215,8 +245,16 @@ onBeforeUnmount(cancel)
         Der Text wurde inzwischen geändert – Übernehmen ersetzt ihn trotzdem.
       </p>
       <div class="mt-2 flex justify-end gap-2">
-        <button type="button" class="ta-btn" @click="result = null">Verwerfen</button>
-        <button type="button" class="ta-btn ta-primary" data-testid="assist-apply" @click="apply">
+        <button type="button" class="ta-btn" title="Verwerfen (Alt+⌫)" @click="result = null">
+          Verwerfen
+        </button>
+        <button
+          type="button"
+          class="ta-btn ta-primary"
+          data-testid="assist-apply"
+          title="Übernehmen (Alt+Enter)"
+          @click="apply"
+        >
           Übernehmen
         </button>
       </div>

@@ -391,6 +391,23 @@ export const useDocumentStore = defineStore('document', () => {
     return id
   }
 
+  /**
+   * Dupliziert die ausgewählte Annotation 10 pt versetzt und wählt die Kopie aus.
+   * Eine Kopie ersetzt keine Originalzeile mehr (ohne replacesKey/coverId).
+   */
+  function duplicateSelectedAnnotation(): string | null {
+    const page = selectedPage.value
+    const a = selectedAnnotation.value
+    if (!page || !a) return null
+    const { id: _id, ...rest } = a
+    const copy = { ...rest, x: a.x + 10, y: a.y + 10 } as NewAnnotation
+    if (copy.kind === 'text') {
+      delete copy.replacesKey
+      delete copy.coverId
+    }
+    return recorded.addAnnotation(page.id, copy)
+  }
+
   /** Löscht die ausgewählte Annotation (ein Undo-Schritt). */
   function removeSelectedAnnotation(): boolean {
     const page = selectedPage.value
@@ -463,6 +480,7 @@ export const useDocumentStore = defineStore('document', () => {
     ...recorded,
     addImage,
     removeSelectedAnnotation,
+    duplicateSelectedAnnotation,
     sourceBytesFor,
     undo,
     redo,

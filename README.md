@@ -16,7 +16,17 @@ Rein clientseitiger PDF-Editor: Dateien verlassen den Browser nicht.
 - **Export** als neue PDF (pdf-lib); Drehung und Annotationen werden eingebrannt. Ein Dialog fragt: alle Seiten, nur markierte (Häkchen an der Seitenkachel) oder nur die aktuelle Seite
 - **Drucken** (Button oder Strg+P) mit derselben Seitenauswahl: die exportierte PDF wird mit pdf.js in Bilder (≈ 180 dpi) gerendert und über den Druckdialog des Browsers ausgegeben (kein iframe, keine CSP-Ausnahme nötig)
 
-Tastatur: `V` Verschieben, `E` Text bearbeiten, `T` Text, `A` Abdecken, `H` Markieren, `S` Signatur, `↑/↓` Seite wechseln, `Entf` Annotation löschen, `Esc` Auswahl aufheben, `Strg+P` Drucken.
+Tastatur: Alle Funktionen haben Kürzel; `?` oder `F1` (bzw. die Taste ⌨ in der Werkzeugleiste) zeigt die vollständige Übersicht. Auswahl:
+
+- Datei: `Strg+O`/`O` öffnen, `F` Scan/Foto, `Strg+S` exportieren, `Strg+P`/`P` drucken
+- Werkzeuge: `V` Verschieben, `E` Text bearbeiten, `T` Text, `H` Markieren, `A` Abdecken, `S` Signatur (`Umschalt+S` neu), `B` Bild
+- Element: Pfeile verschieben (mit `Umschalt` 10 pt), `Strg+D` duplizieren, `Entf` löschen, `Esc` Auswahl aufheben
+- Seiten: `↑/↓`, `Bild↑/↓`, `Pos1/Ende` wechseln, `Alt+↑/↓` verschieben, `Umschalt+L/R` drehen, `Umschalt+Entf` löschen, `M` markieren, `Strg+A` / `Strg+Umschalt+A` alle/keine
+- Ansicht: `Strg+Z`/`Strg+Y` Rückgängig/Wiederholen, `+`/`−`/`0` Zoom
+- Export-/Druckdialog: `1`/`2`/`3` alle/markierte/aktuelle Seite, `Enter` starten, `Esc` schließen
+- Nur privat: `R` Schwärzen, `N` Neues Dokument, `K` Kosten, `1`–`4` Reiter rechts, `Strg+Enter` / `Strg+Umschalt+Enter` / `Strg+Alt+Enter` Aktionen des Reiters, KI-Leiste am Textfeld `Alt+1`–`Alt+5`, `Alt+Enter` übernehmen, `Alt+⌫` verwerfen
+
+Auf dem Mac gilt `⌘` statt `Strg`. In Eingabefeldern wirken nur `Strg`-Kürzel, die das Feld nicht selbst nutzt.
 
 ## Stack
 
@@ -157,7 +167,7 @@ deploy/                    nginx-Blöcke, deploy.sh (öffentlich), deploy-privat
 ```
 
 - Die Seitenliste ist die Single Source of Truth: jede Seite verweist auf `sourceId + sourceIndex`; Löschen/Sortieren ändert nur die Liste, die Originalbytes bleiben unverändert.
-- Annotationen werden in PDF-Punkten im *angezeigten* (gedrehten) Raum gespeichert; beim Drehen werden sie mitgeführt, beim Export über `displayToPdf` umgerechnet.
+- Annotationen werden in PDF-Punkten im _angezeigten_ (gedrehten) Raum gespeichert; beim Drehen werden sie mitgeführt, beim Export über `displayToPdf` umgerechnet.
 - Rohbytes und pdf.js-Dokumente liegen außerhalb des reaktiven States (Performance).
 
 ## Grenzen / Follow-ups

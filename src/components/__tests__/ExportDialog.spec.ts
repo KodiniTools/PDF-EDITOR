@@ -1,7 +1,7 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { PDFDocument } from 'pdf-lib'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ExportDialog from '@/components/ExportDialog.vue'
 import { downloadBytes } from '@/lib/file'
@@ -42,6 +42,9 @@ async function open(pages: number) {
   ])
   return store
 }
+
+// Offene Dialoge hören auf window-Tasten: nach jedem Test abbauen.
+enableAutoUnmount(afterEach)
 
 describe('ExportDialog', () => {
   beforeEach(() => {
@@ -103,5 +106,24 @@ describe('ExportDialog', () => {
     expect(printMock.print).toHaveBeenCalledWith(['blob:1'])
     expect(downloadBytes).not.toHaveBeenCalled()
     expect(w.emitted('close')).toHaveLength(1)
+  })
+
+  it('Tasten: 1/2/3 wählen den Umfang, Enter startet, Esc schließt', async () => {
+    await open(3)
+    const w = mount(ExportDialog, { attachTo: document.body })
+    const key = (k: string) =>
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: k, cancelable: true }))
+    // „2“ ohne markierte Seiten bleibt wirkungslos.
+    key('2')
+    await flushPromises()
+    expect((w.get('[data-testid="export-all"]').element as HTMLInputElement).checked).toBe(true)
+    key('3')
+    await flushPromises()
+    expect((w.get('[data-testid="export-current"]').element as HTMLInputElement).checked).toBe(true)
+    key('Enter')
+    await flushPromises()
+    expect(vi.mocked(downloadBytes)).toHaveBeenCalledTimes(1)
+    key('Escape')
+    expect(w.emitted('close')?.length).toBeGreaterThanOrEqual(1)
   })
 })

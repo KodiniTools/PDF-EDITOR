@@ -69,6 +69,10 @@ function close(): void {
 
 function onKey(e: KeyboardEvent): void {
   if (e.key === 'Escape') close()
+  else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault()
+    void create()
+  }
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
@@ -196,6 +200,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
           :disabled="!canCreate"
           data-testid="new-doc-create"
+          title="Erstellen (Strg+Enter)"
           @click="create"
         >
           <template v-if="gen.busy">{{ useAi ? 'Claude schreibt…' : 'Erstelle…' }}</template>

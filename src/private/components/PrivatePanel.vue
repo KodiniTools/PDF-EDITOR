@@ -1,6 +1,8 @@
 <script setup lang="ts">
 /** Rechte Seitenleiste des privaten Builds: KI-Schwärzung und Fragen zum Dokument. */
-import { ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+
+import { isMod, isPlainKey, isTypingTarget, modalOpen } from '@/lib/shortcuts'
 
 import AskPanel from './AskPanel.vue'
 import FormPanel from './FormPanel.vue'
@@ -15,10 +17,49 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'images', label: 'Bilder' },
 ]
 const tab = ref<Tab>('redact')
+const root = ref<HTMLElement | null>(null)
+
+/** Klickt den Button mit data-shortcut im sichtbaren Reiter, falls aktiv. */
+function clickAction(kind: 'primary' | 'secondary' | 'apply'): boolean {
+  const panel = root.value?.querySelector(`#private-panel-${tab.value}`)
+  const btn = panel?.querySelector<HTMLButtonElement>(`[data-shortcut="${kind}"]`)
+  if (!btn || btn.disabled) return false
+  btn.click()
+  return true
+}
+
+async function selectTab(id: Tab): Promise<void> {
+  tab.value = id
+  if (id === 'ask') {
+    await nextTick()
+    root.value?.querySelector<HTMLTextAreaElement>('#private-panel-ask textarea')?.focus()
+  }
+}
+
+function onKey(e: KeyboardEvent): void {
+  if (modalOpen()) return
+  // Strg+Enter (+Umschalt/+Alt): Aktionen des Reiters – nicht aus fremden Textfeldern.
+  if (isMod(e) && e.key === 'Enter') {
+    if (isTypingTarget(e.target) && !root.value?.contains(e.target as Node)) return
+    const kind = e.altKey ? 'apply' : e.shiftKey ? 'secondary' : 'primary'
+    if (clickAction(kind)) e.preventDefault()
+    return
+  }
+  if (!isPlainKey(e) || e.shiftKey) return
+  const index = ['1', '2', '3', '4'].indexOf(e.key)
+  const id = TABS[index]?.id
+  if (id) {
+    e.preventDefault()
+    void selectTab(id)
+  }
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
   <aside
+    ref="root"
     class="flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white text-sm"
     aria-label="KI-Werkzeuge"
   >
@@ -38,6 +79,7 @@ const tab = ref<Tab>('redact')
             : 'text-gray-500 hover:text-gray-800'
         "
         :data-testid="`private-tab-${t.id}`"
+        :title="`${t.label} (${TABS.indexOf(t) + 1})`"
         @click="tab = t.id"
       >
         {{ t.label }}

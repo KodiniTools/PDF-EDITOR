@@ -65,6 +65,8 @@ function apply(): void {
           type="button"
           class="pn-btn"
           :disabled="redaction.busy || !doc.selectedPage"
+          title="Aktuelle Seite prüfen (Strg+Enter)"
+          data-shortcut="primary"
           @click="analyze('page')"
         >
           Diese Seite
@@ -74,6 +76,8 @@ function apply(): void {
           class="pn-btn pn-primary"
           :disabled="redaction.busy || !doc.hasDocument"
           data-testid="analyze-all"
+          title="Alle Seiten prüfen (Strg+Umschalt+Enter)"
+          data-shortcut="secondary"
           @click="analyze('all')"
         >
           Alle Seiten
@@ -170,6 +174,8 @@ function apply(): void {
         class="pn-btn pn-danger flex-1"
         :disabled="redaction.selectedCount === 0"
         data-testid="apply-suggestions"
+        title="Ausgewählte Vorschläge übernehmen (Strg+Alt+Enter)"
+        data-shortcut="apply"
         @click="apply"
       >
         {{ redaction.selectedCount }} schwärzen
