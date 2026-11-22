@@ -72,7 +72,9 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
     <div class="mt-1 flex items-center justify-between text-xs text-gray-600">
       <label
         class="flex cursor-pointer items-center gap-1 font-medium"
-        :title="marked ? 'Markierung aufheben' : 'Seite markieren (z. B. für den Export)'"
+        :title="
+          marked ? 'Markierung aufheben (M)' : 'Seite für Export/Druck markieren (M, alle: Strg+A)'
+        "
       >
         <input
           type="checkbox"
@@ -88,7 +90,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         <button
           type="button"
           class="thumb-btn"
-          title="Nach oben"
+          title="Nach oben (Alt+↑)"
           :disabled="index === 0"
           @click="emit('move', index - 1)"
         >
@@ -97,22 +99,32 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         <button
           type="button"
           class="thumb-btn"
-          title="Nach unten"
+          title="Nach unten (Alt+↓)"
           :disabled="index === total - 1"
           @click="emit('move', index + 1)"
         >
           ↓
         </button>
-        <button type="button" class="thumb-btn" title="Links drehen" @click="emit('rotate', 'ccw')">
+        <button
+          type="button"
+          class="thumb-btn"
+          title="Links drehen (Umschalt+L)"
+          @click="emit('rotate', 'ccw')"
+        >
           ⟲
         </button>
-        <button type="button" class="thumb-btn" title="Rechts drehen" @click="emit('rotate', 'cw')">
+        <button
+          type="button"
+          class="thumb-btn"
+          title="Rechts drehen (Umschalt+R)"
+          @click="emit('rotate', 'cw')"
+        >
           ⟳
         </button>
         <button
           type="button"
           class="thumb-btn text-red-600"
-          title="Seite löschen"
+          title="Seite löschen (Umschalt+Entf)"
           @click="emit('remove')"
         >
           ✕

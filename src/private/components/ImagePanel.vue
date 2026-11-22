@@ -83,6 +83,8 @@ async function onFile(e: Event): Promise<void> {
           class="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-100 disabled:opacity-50"
           :disabled="!page || !!images.busy"
           data-testid="images-scan"
+          title="Neu suchen (Strg+Umschalt+Enter)"
+          data-shortcut="secondary"
           @click="page && images.scan(page)"
         >
           Neu suchen
@@ -92,6 +94,8 @@ async function onFile(e: Event): Promise<void> {
           class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
           :disabled="!page || !!images.busy"
           data-testid="images-ai"
+          title="Mit KI suchen (Strg+Enter)"
+          data-shortcut="primary"
           @click="page && images.scanWithAi(page)"
         >
           Mit KI suchen

@@ -9,6 +9,7 @@ const emit = defineEmits<{
   openFiles: [files: File[]]
   export: []
   print: []
+  help: []
   editSignature: []
 }>()
 
@@ -75,7 +76,11 @@ const tools: { id: Tool; label: string; hint: string }[] = [
         },
       ]
     : []),
-  { id: 'signature', label: 'Signatur', hint: 'Klicken, um Signatur zu platzieren (S)' },
+  {
+    id: 'signature',
+    label: 'Signatur',
+    hint: 'Klicken, um Signatur zu platzieren (S); neu zeichnen mit Umschalt+S',
+  },
 ]
 
 /** Ausgewählte Textannotation, deren Größe/Farbe in der Toolbar geändert wird. */
@@ -168,6 +173,15 @@ const coverPresets = [
   { color: '#000000', label: 'Schwarz' },
 ]
 
+/** Für Tastenkürzel (EditorView): Dateiauswahl öffnen. */
+defineExpose({
+  openFile: () => fileInput.value?.click(),
+  openScan: () => scanInput.value?.click(),
+  openImage: () => {
+    if (store.hasDocument) imageInput.value?.click()
+  },
+})
+
 function onFileChange(e: Event): void {
   const input = e.target as HTMLInputElement
   const files = input.files ? Array.from(input.files) : []
@@ -190,6 +204,7 @@ function chooseTool(id: Tool): void {
     <button
       type="button"
       class="tb-btn tb-primary"
+      title="PDF öffnen, auch mehrere zum Zusammenführen (Strg+O oder O)"
       :disabled="store.busy"
       @click="fileInput?.click()"
     >
@@ -198,7 +213,7 @@ function chooseTool(id: Tool): void {
     <button
       type="button"
       class="tb-btn"
-      title="Scan oder Foto (JPEG, PNG, WebP, GIF) als neue Seite übernehmen. Auf Handy/Tablet öffnet sich die Kamera."
+      title="Scan oder Foto (JPEG, PNG, WebP, GIF) als neue Seite übernehmen. Auf Handy/Tablet öffnet sich die Kamera. (F)"
       :disabled="store.busy"
       data-testid="scan-button"
       @click="scanInput?.click()"
@@ -249,7 +264,7 @@ function chooseTool(id: Tool): void {
       <button
         type="button"
         class="tb-btn"
-        title="Bild (PNG, JPEG, WebP, GIF) auf der aktuellen Seite einfügen"
+        title="Bild (PNG, JPEG, WebP, GIF) auf der aktuellen Seite einfügen (B)"
         :disabled="store.busy"
         data-testid="insert-image"
         @click="imageInput?.click()"
@@ -268,7 +283,7 @@ function chooseTool(id: Tool): void {
         v-if="store.selectedAnnotation"
         type="button"
         class="tb-btn text-red-700"
-        title="Ausgewähltes Element löschen (Entf)"
+        title="Ausgewähltes Element löschen (Entf). Pfeiltasten verschieben, Strg+D dupliziert."
         data-testid="delete-annotation"
         @click="store.removeSelectedAnnotation()"
       >
@@ -351,6 +366,7 @@ function chooseTool(id: Tool): void {
         v-if="store.tool === 'signature'"
         type="button"
         class="tb-btn"
+        title="Signatur neu zeichnen (Umschalt+S)"
         @click="emit('editSignature')"
       >
         Signatur neu
@@ -385,7 +401,7 @@ function chooseTool(id: Tool): void {
         <button
           type="button"
           class="tb-btn"
-          title="Verkleinern"
+          title="Verkleinern (−)"
           @click="store.setZoom(store.zoom - 0.25)"
         >
           −
@@ -394,7 +410,7 @@ function chooseTool(id: Tool): void {
         <button
           type="button"
           class="tb-btn"
-          title="Vergrößern"
+          title="Vergrößern (+), 100 % mit 0"
           @click="store.setZoom(store.zoom + 0.25)"
         >
           +
@@ -403,6 +419,16 @@ function chooseTool(id: Tool): void {
     </div>
 
     <div class="ml-auto flex gap-2">
+      <button
+        type="button"
+        class="tb-btn"
+        title="Tastenkürzel anzeigen (? oder F1)"
+        aria-label="Tastenkürzel"
+        data-testid="shortcut-help-button"
+        @click="emit('help')"
+      >
+        ⌨
+      </button>
       <button
         v-if="store.hasDocument"
         type="button"
@@ -416,7 +442,7 @@ function chooseTool(id: Tool): void {
         v-if="store.hasDocument"
         type="button"
         class="tb-btn"
-        title="Drucken (Strg+P)"
+        title="Drucken (Strg+P oder P)"
         :disabled="store.busy"
         data-testid="print"
         @click="emit('print')"
@@ -427,6 +453,7 @@ function chooseTool(id: Tool): void {
         v-if="store.hasDocument"
         type="button"
         class="tb-btn tb-primary"
+        title="Exportieren (Strg+S)"
         :disabled="store.busy"
         @click="emit('export')"
       >

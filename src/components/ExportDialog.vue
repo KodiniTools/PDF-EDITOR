@@ -81,8 +81,25 @@ async function run(): Promise<void> {
   }
 }
 
+const SCOPE_KEYS: Record<string, Scope> = { '1': 'all', '2': 'marked', '3': 'current' }
+
 function onKey(e: KeyboardEvent): void {
-  if (e.key === 'Escape' && !busy.value) emit('close')
+  if (e.key === 'Escape' && !busy.value) {
+    emit('close')
+    return
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey || busy.value) return
+  if (e.key === 'Enter') {
+    // Enter auf einem fokussierten Button löst dessen eigene Aktion aus.
+    if ((e.target as HTMLElement | null)?.tagName === 'BUTTON') return
+    e.preventDefault()
+    void run()
+    return
+  }
+  const next = SCOPE_KEYS[e.key]
+  if (next === 'marked' && store.markedPages.length === 0) return
+  if (next === 'current' && !store.selectedPage) return
+  if (next) scope.value = next
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))

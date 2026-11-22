@@ -77,8 +77,13 @@ function display(field: FormField, value: string | boolean): string {
           type="button"
           class="pn-btn pn-primary flex-1"
           :disabled="forms.busy || forms.fields.length === 0 || !forms.profile.trim()"
-          :title="forms.profile.trim() ? '' : 'Zuerst Stammdaten hinterlegen'"
+          :title="
+            forms.profile.trim()
+              ? 'Felder mit KI ausfüllen (Strg+Enter)'
+              : 'Zuerst Stammdaten hinterlegen'
+          "
           data-testid="form-suggest"
+          data-shortcut="primary"
           @click="forms.suggest()"
         >
           KI ausfüllen
@@ -235,6 +240,8 @@ function display(field: FormField, value: string | boolean): string {
         class="pn-btn pn-primary flex-1"
         :disabled="forms.suggestionCount === 0"
         data-testid="form-apply-all"
+        title="Alle Vorschläge übernehmen (Strg+Alt+Enter)"
+        data-shortcut="apply"
         @click="forms.applyAllSuggestions()"
       >
         {{ forms.suggestionCount }} Vorschläge übernehmen

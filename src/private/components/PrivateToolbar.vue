@@ -5,6 +5,8 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { isPlainKey } from '@/lib/shortcuts'
+
 import { formatUsd, MODEL_INFO, modelLabel } from '../models'
 import { useCostStore } from '../stores/costs'
 import { useModelStore } from '../stores/model'
@@ -16,6 +18,16 @@ const costs = useCostStore()
 const showNew = ref(false)
 const showCosts = ref(false)
 
+/** N: Neues Dokument, K: Kosten (nicht in Eingabefeldern oder offenen Dialogen). */
+function onShortcut(e: KeyboardEvent): void {
+  if (!isPlainKey(e) || e.shiftKey) return
+  const key = e.key.toLowerCase()
+  if (key === 'n') showNew.value = true
+  else if (key === 'k') showCosts.value = true
+  else return
+  e.preventDefault()
+}
+
 /** Zurück im Tab: Kosten aktualisieren, falls älter als 10 Minuten. */
 function onVisible(): void {
   if (document.visibilityState === 'visible') void costs.ensureFresh()
@@ -25,8 +37,12 @@ onMounted(() => {
   void models.loadAvailable()
   void costs.ensureFresh()
   document.addEventListener('visibilitychange', onVisible)
+  window.addEventListener('keydown', onShortcut)
 })
-onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisible))
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisible)
+  window.removeEventListener('keydown', onShortcut)
+})
 
 // Eigene Zählung ist sofort aktuell: nach jeder KI-Anfrage die Summe nachladen.
 watch(
@@ -37,8 +53,8 @@ watch(
 )
 
 const costTitle = computed(() => {
-  if (costs.configured === false) return 'Kostenrechner: auf dem Server nicht eingerichtet'
-  if (!costs.report) return 'Kosten der Anthropic API'
+  if (costs.configured === false) return 'Kostenrechner: auf dem Server nicht eingerichtet (K)'
+  if (!costs.report) return 'Kosten der Anthropic API (K)'
   const a = costs.account
   return [
     costs.report.source === 'local'
@@ -47,6 +63,7 @@ const costTitle = computed(() => {
     a.balance >= 0
       ? `Guthaben (geschätzt): ${formatUsd(a.balance)}`
       : `Offener Betrag: ${formatUsd(-a.balance)}`,
+    'Öffnen mit K',
   ].join('\n')
 })
 
@@ -69,6 +86,7 @@ const usageTitle = computed(() => {
       type="button"
       class="rounded-md border border-gray-300 bg-white px-3 py-1.5 hover:bg-gray-100"
       data-testid="new-document"
+      title="Neues Dokument (N)"
       @click="showNew = true"
     >
       Neues Dokument

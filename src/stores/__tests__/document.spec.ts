@@ -198,6 +198,28 @@ describe('document store', () => {
     expect(store.selectedAnnotationId).toBeNull()
   })
 
+  it('dupliziert das ausgewählte Element versetzt und als eigenen Undo-Schritt', async () => {
+    const store = useDocumentStore()
+    await store.addFiles([await pdfFile('a.pdf', 1)])
+    const page = store.pages[0]!
+    expect(store.duplicateSelectedAnnotation()).toBeNull()
+    const id = store.addAnnotation(page.id, {
+      kind: 'highlight',
+      color: '#ff0',
+      x: 1,
+      y: 2,
+      width: 10,
+      height: 20,
+    })!
+    const copy = store.duplicateSelectedAnnotation()
+    expect(copy).not.toBeNull()
+    expect(copy).not.toBe(id)
+    expect(store.selectedAnnotationId).toBe(copy)
+    expect(store.pages[0]!.annotations[1]).toMatchObject({ x: 11, y: 12, width: 10, height: 20 })
+    store.undo()
+    expect(store.pages[0]!.annotations.map((a) => a.id)).toEqual([id])
+  })
+
   it('ersetzt Textzeilen genau einmal und löscht die Abdeckung mit', async () => {
     const store = useDocumentStore()
     await store.addFiles([await pdfFile('a.pdf', 1)])
