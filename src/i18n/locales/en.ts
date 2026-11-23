@@ -11,6 +11,9 @@ export const en: Record<MessageKey, string> = {
   'appearance.dark': 'Dark',
   'appearance.light': 'Light',
   'appearance.system': 'System',
+  'fullscreen.enter': 'Full screen',
+  'fullscreen.exit': 'Exit full screen',
+  'fullscreen.hint': 'Show the editor in the browser’s full-screen mode, or leave it (Esc)',
 
   'common.close': 'Close',
   'common.cancel': 'Cancel',

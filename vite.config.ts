@@ -142,6 +142,48 @@ function serverFavicon(): Plugin {
   }
 }
 
+/**
+ * Oberflächenschrift Supreme: Die Dateien liegen auf dem Server unter /fonts/ (Site-Root,
+ * wie bei den anderen Kodini-Tools) und sind nicht Teil des Repos. Das @font-face wird
+ * nach Vites HTML-Verarbeitung eingefügt, damit "/fonts/…" nicht auf die Base
+ * (/pdf-editor/…) umgeschrieben wird. Abweichender Ort: `KODINI_FONT_BASE`.
+ * Fehlt eine Datei, greift die Systemschrift aus `--font-sans`.
+ */
+function serverFonts(): Plugin {
+  const base = (process.env.KODINI_FONT_BASE ?? '/fonts').replace(/\/+$/, '')
+  const faces = [
+    { weight: 400, file: 'Supreme-Regular.woff2' },
+    { weight: 700, file: 'Supreme-Bold.woff2' },
+  ]
+  const css = faces
+    .map(
+      (f) =>
+        `@font-face{font-family:'Supreme';font-style:normal;font-weight:${f.weight};` +
+        `font-display:swap;src:url('${base}/${f.file}') format('woff2')}`,
+    )
+    .join('')
+  return {
+    name: 'kodini-server-fonts',
+    transformIndexHtml: {
+      order: 'post',
+      handler: () => [
+        {
+          tag: 'link',
+          attrs: {
+            rel: 'preload',
+            href: `${base}/Supreme-Regular.woff2`,
+            as: 'font',
+            type: 'font/woff2',
+            crossorigin: '',
+          },
+          injectTo: 'head',
+        },
+        { tag: 'style', attrs: { 'data-kodini-fonts': '' }, children: css, injectTo: 'head' },
+      ],
+    },
+  }
+}
+
 /** Private Seite: nicht indexieren, keine Canonical-URL der öffentlichen App. */
 function privateHtml(): Plugin {
   return {
@@ -175,6 +217,7 @@ export default defineConfig(({ mode }) => {
       vueDevTools(),
       globalNavigation(!isPrivate),
       globalFooter(!isPrivate),
+      serverFonts(),
       ...(isPrivate ? [privateHtml()] : [serverFavicon()]),
     ],
     resolve: {

@@ -13,6 +13,9 @@ export const de = {
   'appearance.dark': 'Dunkel',
   'appearance.light': 'Hell',
   'appearance.system': 'System',
+  'fullscreen.enter': 'Vollbild',
+  'fullscreen.exit': 'Vollbild beenden',
+  'fullscreen.hint': 'Editor im Vollbildmodus des Browsers anzeigen oder Vollbild beenden (Esc)',
 
   'common.close': 'Schließen',
   'common.cancel': 'Abbrechen',

@@ -33,7 +33,8 @@
   font-size: 0.875rem;
 }
 
-.pdf-editor-appearance select {
+.pdf-editor-appearance select,
+.pdf-editor-fullscreen {
   min-height: 36px;
   border: 1px solid var(--pdf-border);
   border-radius: 8px;
@@ -46,7 +47,17 @@
   color-scheme: dark;
 }
 
-.pdf-editor-appearance select:focus-visible {
+.pdf-editor-fullscreen {
+  padding-inline: 12px;
+  cursor: pointer;
+}
+
+.pdf-editor-fullscreen:hover {
+  background: var(--pdf-raised);
+}
+
+.pdf-editor-appearance select:focus-visible,
+.pdf-editor-fullscreen:focus-visible {
   outline: 2px solid var(--pdf-cyan);
   outline-offset: 2px;
 }

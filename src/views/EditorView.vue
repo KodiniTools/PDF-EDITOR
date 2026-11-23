@@ -13,6 +13,7 @@ import PageEditor from '@/components/PageEditor.vue'
 import PageSidebar from '@/components/PageSidebar.vue'
 import SignatureDialog from '@/components/SignatureDialog.vue'
 import { useAppearance } from '@/composables/useAppearance'
+import { useFullscreen } from '@/composables/useFullscreen'
 import { useI18n } from '@/i18n'
 import { displaySize, normalizeRotation } from '@/lib/geometry'
 import {
@@ -32,6 +33,9 @@ const PrivatePanel = __PRIVATE__
 const isPrivate = __PRIVATE__
 const { appearance, setAppearance } = useAppearance()
 const { t } = useI18n()
+/** Wurzelelement des Editors: Es wird als Ganzes in den Vollbildmodus geschaltet. */
+const shell = ref<HTMLElement | null>(null)
+const fullscreen = useFullscreen(shell)
 
 const store = useDocumentStore()
 const showSignature = ref(false)
@@ -282,6 +286,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
+    ref="shell"
     class="pdf-editor-shell"
     @dragover="onDragOver"
     @dragleave.self="dropActive = false"
@@ -296,6 +301,17 @@ onBeforeUnmount(() => {
           <option value="light">{{ t('appearance.light') }}</option>
           <option value="system">{{ t('appearance.system') }}</option>
         </select>
+        <button
+          v-if="fullscreen.supported.value"
+          type="button"
+          class="pdf-editor-fullscreen"
+          :title="t('fullscreen.hint')"
+          :aria-pressed="fullscreen.active.value"
+          data-testid="fullscreen-toggle"
+          @click="fullscreen.toggle()"
+        >
+          {{ fullscreen.active.value ? t('fullscreen.exit') : t('fullscreen.enter') }}
+        </button>
       </div>
     </header>
 
