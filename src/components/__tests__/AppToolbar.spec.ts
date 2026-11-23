@@ -160,4 +160,55 @@ describe('AppToolbar', () => {
     expect(current()).not.toHaveProperty('align')
     expect(current()).not.toHaveProperty('bold')
   })
+
+  it('setzt die Position des ausgewählten Textes über die Felder X und Y (mm)', async () => {
+    const store = useDocumentStore()
+    store.pages.push({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 595.28, height: 841.89 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    store.selectedPageId = 'p'
+    store.selectedAnnotationId = store.addAnnotation('p', {
+      kind: 'text',
+      text: 'Hallo',
+      fontSize: 14,
+      color: '#000000',
+      x: 72,
+      y: 144,
+    })
+    const wrapper = mount(AppToolbar)
+    const current = () => store.pages[0]!.annotations[0]!
+    const x = wrapper.get<HTMLInputElement>('[data-testid="selected-text-x"]')
+    const y = wrapper.get<HTMLInputElement>('[data-testid="selected-text-y"]')
+    // 72 pt = 25,4 mm; 144 pt = 50,8 mm.
+    expect(x.element.value).toBe('25.4')
+    expect(y.element.value).toBe('50.8')
+
+    await x.setValue('100')
+    await y.setValue('20')
+    expect(current().x).toBeCloseTo((100 * 72) / 25.4, 3)
+    expect(current().y).toBeCloseTo((20 * 72) / 25.4, 3)
+
+    // Außerhalb der Seite: der Text bleibt vollständig auf dem Blatt.
+    await x.setValue('500')
+    await y.setValue('999')
+    expect(current().x).toBeLessThan(595.28)
+    expect(current().x).toBeGreaterThan(500)
+    expect(current().y).toBeCloseTo(841.89 - 14 * 1.2, 0)
+    await x.setValue('-5')
+    expect(current().x).toBe(0)
+
+    // Leere oder ungültige Eingabe ändert nichts.
+    await x.setValue('')
+    expect(current().x).toBe(0)
+
+    // Alle Schritte zusammen sind ein Undo-Schritt.
+    store.undo()
+    expect(current()).toMatchObject({ x: 72, y: 144 })
+  })
 })

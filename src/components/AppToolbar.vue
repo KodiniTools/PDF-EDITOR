@@ -3,7 +3,10 @@ import { computed, defineAsyncComponent, ref } from 'vue'
 
 import NewDocumentDialog from '@/components/NewDocumentDialog.vue'
 import { useI18n } from '@/i18n'
+import { displaySize, normalizeRotation, TEXT_LINE_HEIGHT } from '@/lib/geometry'
 import { IMAGE_ACCEPT, readImageFile } from '@/lib/image'
+import { longestLineWidth, minTextWidth } from '@/lib/textLayout'
+import { unwrapSoft } from '@/lib/textWrap'
 import { useDocumentStore } from '@/stores/document'
 import type { FontFamily, TextAlign, Tool } from '@/types/pdf'
 
@@ -124,6 +127,43 @@ const selectedFont = computed({
       )
     }
   },
+})
+
+/** Millimeter je PDF-Punkt (1 pt = 1/72 Zoll). */
+const MM_PER_PT = 25.4 / 72
+const toMm = (pt: number): number => Math.round(pt * MM_PER_PT * 10) / 10
+
+/**
+ * Setzt die Position des ausgewählten Textes (in mm ab linker oberer Seitenecke).
+ * Der Text bleibt auf der Seite; rechts wird er vom Seiteneditor schmaler umbrochen.
+ */
+function moveSelectedText(axis: 'x' | 'y', mm: number | string): void {
+  const page = store.selectedPage
+  const a = selectedText.value
+  const value = typeof mm === 'number' ? mm : Number.NaN
+  if (!page || !a || !Number.isFinite(value)) return
+  const size = displaySize(page.box, normalizeRotation(page.baseRotation + page.rotation))
+  const pt = value / MM_PER_PT
+  let next: number
+  if (axis === 'x') {
+    const unwrapped = unwrapSoft(a.text, a.softBreaks ?? [])
+    const keep =
+      a.replacesKey === undefined ? minTextWidth(unwrapped, a) : longestLineWidth(unwrapped, a)
+    next = Math.min(Math.max(0, pt), Math.max(0, size.width - keep))
+  } else {
+    const height = a.text.split('\n').length * a.fontSize * TEXT_LINE_HEIGHT
+    next = Math.min(Math.max(0, pt), Math.max(0, size.height - height))
+  }
+  store.updateAnnotation(page.id, a.id, { [axis]: next }, `style:${a.id}`)
+}
+
+const selectedX = computed({
+  get: () => toMm(selectedText.value?.x ?? 0),
+  set: (mm: number | string) => moveSelectedText('x', mm),
+})
+const selectedY = computed({
+  get: () => toMm(selectedText.value?.y ?? 0),
+  set: (mm: number | string) => moveSelectedText('y', mm),
 })
 
 /** Fett/kursiv der Auswahl umschalten bzw. Ausrichtung setzen (ein Undo-Schritt je Text). */
@@ -378,6 +418,38 @@ function chooseTool(id: Tool): void {
         :aria-label="t('toolbar.selectionTextColor')"
         data-testid="selected-text-color"
       />
+      <div
+        class="flex items-center gap-2"
+        role="group"
+        :aria-label="t('toolbar.position')"
+        :title="t('toolbar.positionHint')"
+      >
+        <label class="flex items-center gap-1">
+          X
+          <input
+            v-model.number="selectedX"
+            type="number"
+            min="0"
+            step="1"
+            class="w-16 rounded border pdf-control-border px-1 py-0.5"
+            :aria-label="t('toolbar.positionX')"
+            data-testid="selected-text-x"
+          />
+        </label>
+        <label class="flex items-center gap-1">
+          Y
+          <input
+            v-model.number="selectedY"
+            type="number"
+            min="0"
+            step="1"
+            class="w-16 rounded border pdf-control-border px-1 py-0.5"
+            :aria-label="t('toolbar.positionY')"
+            data-testid="selected-text-y"
+          />
+        </label>
+        <span class="pdf-control-muted">mm</span>
+      </div>
     </div>
 
     <div v-if="store.hasDocument" class="flex flex-wrap items-center gap-2">

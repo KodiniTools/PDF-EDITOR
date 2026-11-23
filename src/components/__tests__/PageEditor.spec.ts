@@ -350,6 +350,34 @@ describe('PageEditor', () => {
     wrapper.unmount()
   })
 
+  it('bricht den Text neu um, wenn die X-Position von außen geändert wird', async () => {
+    const { store, wrapper } = setup()
+    store.setTool('text')
+    await wrapper
+      .get('[data-testid="overlay"]')
+      .trigger('pointerdown', { button: 0, clientX: 0, clientY: 10 })
+    await flushPromises()
+    const long = Array.from({ length: 40 }, (_, i) => `Wort${i}`).join(' ')
+    await wrapper.get('textarea').setValue(long)
+    await wrapper.get('textarea').trigger('blur')
+    const a = store.pages[0]!.annotations[0]!
+    if (a.kind !== 'text') throw new Error('Textannotation fehlt')
+    const before = a.text.split('\n').length
+
+    // So setzt die Werkzeugleiste die Position (Feld X).
+    store.updateAnnotation('p1', a.id, { x: 300 }, `style:${a.id}`)
+    await flushPromises()
+    const after = store.pages[0]!.annotations[0]!
+    if (after.kind !== 'text') throw new Error('Textannotation fehlt')
+    expect(after.text.split('\n').length).toBeGreaterThan(before)
+    for (const line of after.text.split('\n')) {
+      expect(300 + line.length * 14 * 0.55).toBeLessThanOrEqual(600)
+    }
+    store.undo()
+    expect(store.pages[0]!.annotations[0]).toMatchObject({ x: 0 })
+    wrapper.unmount()
+  })
+
   it('ignoriert Klicks im Auswahl-Werkzeug', async () => {
     const { store, wrapper } = setup()
     await wrapper.get('[data-testid="overlay"]').trigger('pointerdown', { button: 0 })

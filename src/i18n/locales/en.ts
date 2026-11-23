@@ -85,6 +85,11 @@ export const en: Record<MessageKey, string> = {
   'toolbar.alignLeft': 'Align left',
   'toolbar.alignCenter': 'Centre',
   'toolbar.alignRight': 'Align right',
+  'toolbar.position': 'Text position',
+  'toolbar.positionHint':
+    'Text position in mm: X from the left, Y from the top edge of the page. The arrows change it by 1 mm.',
+  'toolbar.positionX': 'Distance from the left edge of the page in mm',
+  'toolbar.positionY': 'Distance from the top edge of the page in mm',
   'toolbar.size': 'Size',
   'toolbar.textColor': 'Text colour',
   'toolbar.selectionColor': 'Selection: colour',
