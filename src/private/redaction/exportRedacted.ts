@@ -34,10 +34,16 @@ export interface PrivateExportOptions {
   formValues?: ReadonlyArray<FieldValues | undefined>
 }
 
-/** Textfelder mit č, ć, đ usw. erhalten eine eingebettete Unicode-Schrift. */
+/**
+ * Textfelder mit č, ć, đ usw. erhalten eine eingebettete Unicode-Schrift.
+ * Fett gibt es dort nur für die serifenlose Schrift, kursiv nicht.
+ */
 const EXPORT_OPTIONS: ExportOptions = {
-  unicodeFont: async (doc, family) =>
-    (await import('../fonts/unicode')).embedUnicodeFont(doc, family),
+  unicodeFont: async (doc, family, style) =>
+    (await import('../fonts/unicode')).embedUnicodeFont(
+      doc,
+      family === 'sans' && style.bold ? 'sans-bold' : family,
+    ),
 }
 
 export async function exportWithRedactions(

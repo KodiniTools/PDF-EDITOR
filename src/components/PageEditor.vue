@@ -386,13 +386,17 @@ function applyReflow(a: TextAnnotation, group?: string): void {
 }
 
 /**
- * Größe/Schrift in der Werkzeugleiste geändert: bereits umbrochene Texte neu umbrechen
+ * Größe, Schrift oder Schnitt (fett/kursiv) in der Werkzeugleiste geändert: bereits umbrochene Texte neu umbrechen
  * (gleiche Undo-Gruppe wie die Änderung selbst).
  */
 watch(
   () =>
     props.page.annotations
-      .map((a) => (a.kind === 'text' ? `${a.id}:${a.fontSize}:${a.font ?? ''}` : ''))
+      .map((a) =>
+        a.kind === 'text'
+          ? `${a.id}:${a.fontSize}:${a.font ?? ''}:${a.bold === true}:${a.italic === true}`
+          : '',
+      )
       .join('|'),
   () => {
     for (const a of props.page.annotations) {
@@ -671,6 +675,9 @@ function px(v: number): string {
             fontSize: px(a.fontSize),
             lineHeight: String(TEXT_LINE_HEIGHT),
             fontFamily: CSS_FONTS[a.font ?? 'sans'],
+            fontWeight: a.bold ? 'bold' : 'normal',
+            fontStyle: a.italic ? 'italic' : 'normal',
+            textAlign: a.align ?? 'left',
           }"
           @pointerdown="onAnnotationPointerDown($event, a, 'move')"
           @dblclick.stop="startTextEdit(a.id)"
@@ -681,7 +688,13 @@ function px(v: number): string {
             :value="a.text"
             wrap="off"
             class="block resize-none overflow-hidden border-0 bg-white/70 p-0 whitespace-pre outline-none [field-sizing:content]"
-            :style="{ minWidth: '6em', font: 'inherit', color: 'inherit', lineHeight: 'inherit' }"
+            :style="{
+              minWidth: '6em',
+              font: 'inherit',
+              color: 'inherit',
+              lineHeight: 'inherit',
+              textAlign: 'inherit',
+            }"
             :aria-label="t('editor.annotationText')"
             @input="onTextInput(a, $event)"
             @blur="finishTextEdit(a, $event)"

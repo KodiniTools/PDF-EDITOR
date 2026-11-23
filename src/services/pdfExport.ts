@@ -17,13 +17,47 @@ import {
   TEXT_BASELINE_RATIO,
   TEXT_LINE_HEIGHT,
 } from '@/lib/geometry'
-import type { Annotation, FontFamily, PageRef, Rotation } from '@/types/pdf'
+import type { Annotation, FontFamily, PageRef, Rotation, TextAlign } from '@/types/pdf'
 
-const STANDARD_FONTS: Record<FontFamily, StandardFonts> = {
-  sans: StandardFonts.Helvetica,
-  serif: StandardFonts.TimesRoman,
-  mono: StandardFonts.Courier,
+/** Schnitt einer Schrift: fett und/oder kursiv. */
+export interface FontStyle {
+  bold: boolean
+  italic: boolean
 }
+
+/** Standardschriften je Familie: normal, fett, kursiv, fett-kursiv. */
+const STANDARD_FONTS: Record<
+  FontFamily,
+  readonly [StandardFonts, StandardFonts, StandardFonts, StandardFonts]
+> = {
+  sans: [
+    StandardFonts.Helvetica,
+    StandardFonts.HelveticaBold,
+    StandardFonts.HelveticaOblique,
+    StandardFonts.HelveticaBoldOblique,
+  ],
+  serif: [
+    StandardFonts.TimesRoman,
+    StandardFonts.TimesRomanBold,
+    StandardFonts.TimesRomanItalic,
+    StandardFonts.TimesRomanBoldItalic,
+  ],
+  mono: [
+    StandardFonts.Courier,
+    StandardFonts.CourierBold,
+    StandardFonts.CourierOblique,
+    StandardFonts.CourierBoldOblique,
+  ],
+}
+
+export function standardFontFor(family: FontFamily, style: FontStyle): StandardFonts {
+  const [regular, bold, italic, boldItalic] = STANDARD_FONTS[family]
+  if (style.bold) return style.italic ? boldItalic : bold
+  return style.italic ? italic : regular
+}
+
+/** Anteil des freien Platzes links von einer Zeile je Ausrichtung. */
+const ALIGN_FACTOR: Record<TextAlign, number> = { left: 0, center: 0.5, right: 1 }
 
 /** Fehler mit nutzerfreundlicher Meldung; die technische Ursache steht in `cause`. */
 export class PdfEditorError extends Error {
@@ -81,9 +115,9 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; type: 'png' | 'jp
 interface DrawContext {
   doc: PDFDocument
   /** Lädt eine Standardschrift bei Bedarf und bettet sie nur einmal ein. */
-  font: (family: FontFamily) => Promise<PDFFont>
+  font: (family: FontFamily, style: FontStyle) => Promise<PDFFont>
   /** Optional: Schrift für Text außerhalb von WinAnsi (z. B. č, ć, đ). */
-  unicodeFont?: (family: FontFamily) => Promise<PDFFont>
+  unicodeFont?: (family: FontFamily, style: FontStyle) => Promise<PDFFont>
   images: Map<string, PDFImage>
 }
 
@@ -141,15 +175,22 @@ async function drawAnnotation(
       const lines = a.text.split(/\r?\n/)
       const lineHeight = a.fontSize * TEXT_LINE_HEIGHT
       const family = a.font ?? 'sans'
-      let font = await ctx.font(family)
+      const style: FontStyle = { bold: a.bold === true, italic: a.italic === true }
+      let font = await ctx.font(family, style)
       if (ctx.unicodeFont && !canEncode(a.text.replace(/\r?\n/g, ''), font)) {
-        font = await ctx.unicodeFont(family)
+        font = await ctx.unicodeFont(family, style)
       }
-      lines.forEach((line, i) => {
+      const drawn = lines.map((line) => sanitizeForFont(line, font))
+      // Ausrichtung innerhalb des Blocks (so breit wie die längste Zeile), wie im Editor.
+      const factor = ALIGN_FACTOR[a.align ?? 'left']
+      const widths = drawn.map((line) => (factor ? font.widthOfTextAtSize(line, a.fontSize) : 0))
+      const blockWidth = Math.max(0, ...widths)
+      drawn.forEach((line, i) => {
         if (!line) return
         const baseline = a.y + i * lineHeight + a.fontSize * TEXT_BASELINE_RATIO
-        const anchor = displayToPdf({ x: a.x, y: baseline }, box, rotation)
-        page.drawText(sanitizeForFont(line, font), {
+        const offset = (blockWidth - (widths[i] ?? 0)) * factor
+        const anchor = displayToPdf({ x: a.x + offset, y: baseline }, box, rotation)
+        page.drawText(line, {
           x: anchor.x,
           y: anchor.y,
           size: a.fontSize,
@@ -193,7 +234,7 @@ export interface ExportOptions {
    * Bettet eine Unicode-Schrift ein, wenn ein Textfeld Zeichen außerhalb von
    * WinAnsi enthält (nur privater Build). Ohne: Ersatz durch „?“.
    */
-  unicodeFont?: (doc: PDFDocument, family: FontFamily) => Promise<PDFFont>
+  unicodeFont?: (doc: PDFDocument, family: FontFamily, style: FontStyle) => Promise<PDFFont>
 }
 
 export async function exportPdf(
@@ -206,14 +247,17 @@ export async function exportPdf(
   }
 
   const out = await PDFDocument.create()
-  const fonts = new Map<FontFamily, Promise<PDFFont>>()
+  const fontKey = (family: FontFamily, style: FontStyle) =>
+    `${family}:${style.bold ? 'b' : ''}${style.italic ? 'i' : ''}`
+  const fonts = new Map<string, Promise<PDFFont>>()
   const ctx: DrawContext = {
     doc: out,
-    font: (family) => {
-      let font = fonts.get(family)
+    font: (family, style) => {
+      const key = fontKey(family, style)
+      let font = fonts.get(key)
       if (!font) {
-        font = out.embedFont(STANDARD_FONTS[family])
-        fonts.set(family, font)
+        font = out.embedFont(standardFontFor(family, style))
+        fonts.set(key, font)
       }
       return font
     },
@@ -221,12 +265,13 @@ export async function exportPdf(
   }
   const { unicodeFont } = options
   if (unicodeFont) {
-    const unicodeFonts = new Map<FontFamily, Promise<PDFFont>>()
-    ctx.unicodeFont = (family) => {
-      let font = unicodeFonts.get(family)
+    const unicodeFonts = new Map<string, Promise<PDFFont>>()
+    ctx.unicodeFont = (family, style) => {
+      const key = fontKey(family, style)
+      let font = unicodeFonts.get(key)
       if (!font) {
-        font = unicodeFont(out, family)
-        unicodeFonts.set(family, font)
+        font = unicodeFont(out, family, style)
+        unicodeFonts.set(key, font)
       }
       return font
     }

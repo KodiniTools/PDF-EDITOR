@@ -12,7 +12,13 @@ export const CSS_FONTS: Record<FontFamily, string> = {
   mono: '"Courier New", Courier, monospace',
 }
 
-type TextStyle = Pick<TextAnnotation, 'fontSize' | 'font'>
+export type TextStyle = Pick<TextAnnotation, 'fontSize' | 'font' | 'bold' | 'italic'>
+
+/** CSS-Kurzschreibweise `font` für Messung und Anzeige (Größe in Seitenpunkten). */
+export function cssFont(style: TextStyle): string {
+  const parts = [style.italic ? 'italic' : '', style.bold ? 'bold' : '', `${style.fontSize}px`]
+  return `${parts.filter(Boolean).join(' ')} ${CSS_FONTS[style.font ?? 'sans']}`
+}
 
 let measureContext: CanvasRenderingContext2D | null | undefined
 
@@ -25,8 +31,9 @@ export function measureTextWidth(text: string, style: TextStyle): number {
       measureContext = null
     }
   }
-  if (!measureContext) return text.length * style.fontSize * 0.55
-  measureContext.font = `${style.fontSize}px ${CSS_FONTS[style.font ?? 'sans']}`
+  // Fett läuft etwas breiter (auch in der Schätzung, damit Tests den Umbruch sehen).
+  if (!measureContext) return text.length * style.fontSize * (style.bold ? 0.6 : 0.55)
+  measureContext.font = cssFont(style)
   return measureContext.measureText(text).width
 }
 

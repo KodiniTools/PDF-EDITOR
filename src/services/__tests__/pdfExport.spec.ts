@@ -1,7 +1,13 @@
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 
-import { exportPdf, PdfEditorError, sanitizeForFont, validatePdf } from '@/services/pdfExport'
+import {
+  exportPdf,
+  PdfEditorError,
+  sanitizeForFont,
+  standardFontFor,
+  validatePdf,
+} from '@/services/pdfExport'
 import type { PageRef } from '@/types/pdf'
 
 /** Erzeugt ein PDF mit Seiten unterschiedlicher Breite, um die Reihenfolge prüfen zu können. */
@@ -115,5 +121,42 @@ describe('sanitizeForFont', () => {
     const doc = await PDFDocument.create()
     const font = await doc.embedFont(StandardFonts.Helvetica)
     expect(sanitizeForFont('Äpfel € 🙂', font)).toBe('Äpfel € ?')
+  })
+})
+
+describe('Textformat im Export', () => {
+  it('wählt den Schnitt der Standardschrift', () => {
+    const plain = { bold: false, italic: false }
+    expect(standardFontFor('sans', plain)).toBe(StandardFonts.Helvetica)
+    expect(standardFontFor('sans', { bold: true, italic: false })).toBe(StandardFonts.HelveticaBold)
+    expect(standardFontFor('serif', { bold: false, italic: true })).toBe(
+      StandardFonts.TimesRomanItalic,
+    )
+    expect(standardFontFor('mono', { bold: true, italic: true })).toBe(
+      StandardFonts.CourierBoldOblique,
+    )
+  })
+
+  it('bettet für fette, kursive und ausgerichtete Texte die passenden Schriften ein', async () => {
+    const sources = new Map([['a', await makePdf([300])]])
+    const text = { kind: 'text' as const, x: 10, y: 20, fontSize: 12, color: '#000000' }
+    const bytes = await exportPdf(sources, [
+      ref('a', 0, 300, {
+        annotations: [
+          { ...text, id: 't1', text: 'normal' },
+          { ...text, id: 't2', text: 'fett\nzweite Zeile', bold: true, align: 'right' },
+          { ...text, id: 't3', text: 'kursiv', italic: true, font: 'serif', align: 'center' },
+          { ...text, id: 't4', text: 'beides', bold: true, italic: true, font: 'mono' },
+        ],
+      }),
+    ])
+    const doc = await PDFDocument.load(bytes)
+    const names = doc.context
+      .enumerateIndirectObjects()
+      .map(([, obj]) => String(obj))
+      .filter((s) => s.includes('/BaseFont'))
+      .map((s) => /\/BaseFont\s*\/([\w-]+)/.exec(s)?.[1])
+      .sort()
+    expect(names).toEqual(['Courier-BoldOblique', 'Helvetica', 'Helvetica-Bold', 'Times-Italic'])
   })
 })

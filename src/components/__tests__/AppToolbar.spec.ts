@@ -106,4 +106,58 @@ describe('AppToolbar', () => {
     store.undo()
     expect(store.pages[0]!.annotations[0]).toMatchObject({ color: '#facc15' })
   })
+
+  it('schaltet Fett und Kursiv um und setzt die Ausrichtung des ausgewählten Textes', async () => {
+    const store = useDocumentStore()
+    store.pages.push({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 600, height: 800 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    store.selectedPageId = 'p'
+    const wrapper = mount(AppToolbar)
+    // Ohne ausgewählten Text gibt es die Formatleiste nicht.
+    expect(wrapper.find('[data-testid="text-format"]').exists()).toBe(false)
+
+    const id = store.addAnnotation('p', {
+      kind: 'text',
+      text: 'Hallo',
+      fontSize: 14,
+      color: '#000000',
+      x: 10,
+      y: 10,
+    })
+    store.selectedAnnotationId = id
+    await wrapper.vm.$nextTick()
+    const current = () => store.pages[0]!.annotations[0]!
+    const format = wrapper.get('[data-testid="text-format"]')
+    // Fokus in dieser Gruppe beendet die Textbearbeitung nicht (siehe PageEditor).
+    expect(format.attributes('data-text-style-controls')).toBeDefined()
+
+    const bold = wrapper.get('[data-testid="text-bold"]')
+    expect(bold.attributes('aria-pressed')).toBe('false')
+    await bold.trigger('click')
+    expect(current()).toMatchObject({ bold: true })
+    expect(bold.attributes('aria-pressed')).toBe('true')
+    await wrapper.get('[data-testid="text-italic"]').trigger('click')
+    expect(current()).toMatchObject({ bold: true, italic: true })
+    await bold.trigger('click')
+    expect(current()).toMatchObject({ bold: false, italic: true })
+
+    expect(wrapper.get('[data-testid="text-align-left"]').attributes('aria-pressed')).toBe('true')
+    await wrapper.get('[data-testid="text-align-center"]').trigger('click')
+    expect(current()).toMatchObject({ align: 'center' })
+    await wrapper.get('[data-testid="text-align-right"]').trigger('click')
+    expect(current()).toMatchObject({ align: 'right' })
+    expect(wrapper.get('[data-testid="text-align-right"]').attributes('aria-pressed')).toBe('true')
+
+    // Alle Formatänderungen an einem Text sind ein Undo-Schritt.
+    store.undo()
+    expect(current()).not.toHaveProperty('align')
+    expect(current()).not.toHaveProperty('bold')
+  })
 })

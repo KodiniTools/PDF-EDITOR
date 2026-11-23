@@ -313,6 +313,43 @@ describe('PageEditor', () => {
     wrapper.unmount()
   })
 
+  it('zeigt Fett, Kursiv und Ausrichtung an und bricht fetten Text neu um', async () => {
+    const { store, wrapper } = setup()
+    store.setTool('text')
+    await wrapper
+      .get('[data-testid="overlay"]')
+      .trigger('pointerdown', { button: 0, clientX: 10, clientY: 10 })
+    await flushPromises()
+    const long = Array.from({ length: 40 }, (_, i) => `Wort${i}`).join(' ')
+    await wrapper.get('textarea').setValue(long)
+    await wrapper.get('textarea').trigger('blur')
+    const a = store.pages[0]!.annotations[0]!
+    if (a.kind !== 'text') throw new Error('Textannotation fehlt')
+    const before = a.text
+
+    store.updateAnnotation(
+      'p1',
+      a.id,
+      { bold: true, italic: true, align: 'right' },
+      `style:${a.id}`,
+    )
+    await flushPromises()
+    const style = (wrapper.get('span.whitespace-pre').element.parentElement as HTMLElement).style
+    expect(style.fontWeight).toBe('bold')
+    expect(style.fontStyle).toBe('italic')
+    expect(style.textAlign).toBe('right')
+
+    // Fett läuft breiter: der Text wird neu umbrochen und passt weiter auf die Seite.
+    const after = store.pages[0]!.annotations[0]!
+    if (after.kind !== 'text') throw new Error('Textannotation fehlt')
+    expect(after.text).not.toBe(before)
+    expect(after.text.replace(/\n/g, ' ')).toBe(long)
+    for (const line of after.text.split('\n')) {
+      expect(after.x + line.length * 14 * 0.6).toBeLessThanOrEqual(600)
+    }
+    wrapper.unmount()
+  })
+
   it('ignoriert Klicks im Auswahl-Werkzeug', async () => {
     const { store, wrapper } = setup()
     await wrapper.get('[data-testid="overlay"]').trigger('pointerdown', { button: 0 })
