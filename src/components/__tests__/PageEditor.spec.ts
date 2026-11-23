@@ -228,6 +228,91 @@ describe('PageEditor', () => {
     wrapper.unmount()
   })
 
+  it('lässt langen Text frei verschieben und bricht ihn dabei neu um', async () => {
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+    proto.setPointerCapture ??= () => undefined
+    proto.releasePointerCapture ??= () => undefined
+    proto.hasPointerCapture ??= () => false
+    const { store, wrapper } = setup()
+    store.setTool('text')
+    const overlay = wrapper.get('[data-testid="overlay"]')
+    await overlay.trigger('pointerdown', { button: 0, clientX: 0, clientY: 20 })
+    await flushPromises()
+    const long = Array.from({ length: 60 }, (_, i) => `Wort${i}`).join(' ')
+    await wrapper.get('textarea').setValue(`${long}\nZweiter Absatz`)
+    await wrapper.get('textarea').trigger('blur')
+    store.setTool('select')
+    await flushPromises()
+
+    const current = () => {
+      const a = store.pages[0]!.annotations[0]
+      if (a?.kind !== 'text') throw new Error('Textannotation fehlt')
+      return a
+    }
+    const fits = () => {
+      const a = current()
+      for (const line of a.text.split('\n')) {
+        expect(a.x + line.length * a.fontSize * 0.55).toBeLessThanOrEqual(600)
+      }
+    }
+    const linesAtLeft = current().text.split('\n').length
+    expect(current().x).toBe(0)
+    fits()
+
+    // Nach rechts ziehen: früher blockiert, jetzt schmaler umbrochen.
+    await wrapper
+      .get('span.whitespace-pre')
+      .trigger('pointerdown', { button: 0, pointerId: 1, clientX: 5, clientY: 25 })
+    await overlay.trigger('pointermove', { pointerId: 1, clientX: 305, clientY: 125 })
+    expect(current().x).toBe(300)
+    expect(current().text.split('\n').length).toBeGreaterThan(linesAtLeft)
+    fits()
+    // Der Inhalt bleibt gleich, der von Hand gesetzte Umbruch auch.
+    expect(current().text.endsWith('\nZweiter Absatz')).toBe(true)
+    expect(current().text.replace(/\n/g, ' ')).toBe(`${long} Zweiter Absatz`)
+
+    // Zurück nach links: wieder die ursprünglichen Zeilen.
+    await overlay.trigger('pointermove', { pointerId: 1, clientX: 5, clientY: 125 })
+    await overlay.trigger('pointerup', { pointerId: 1, clientX: 5, clientY: 125 })
+    expect(current().x).toBe(0)
+    expect(current().y).toBeGreaterThan(100)
+    expect(current().text.split('\n').length).toBe(linesAtLeft)
+
+    // Verschieben ist ein Undo-Schritt.
+    store.undo()
+    expect(current().y).toBeLessThan(30)
+    wrapper.unmount()
+  })
+
+  it('bricht umbrochenen Text neu um, wenn die Schrift größer wird', async () => {
+    const { store, wrapper } = setup()
+    store.setTool('text')
+    await wrapper
+      .get('[data-testid="overlay"]')
+      .trigger('pointerdown', { button: 0, clientX: 10, clientY: 10 })
+    await flushPromises()
+    const long = Array.from({ length: 40 }, (_, i) => `Wort${i}`).join(' ')
+    await wrapper.get('textarea').setValue(long)
+    await wrapper.get('textarea').trigger('blur')
+    const a = store.pages[0]!.annotations[0]!
+    if (a.kind !== 'text') throw new Error('Textannotation fehlt')
+    const original = a.text
+    const before = original.split('\n').length
+
+    store.updateAnnotation('p1', a.id, { fontSize: 28 }, `style:${a.id}`)
+    await flushPromises()
+    const after = store.pages[0]!.annotations[0]!
+    if (after.kind !== 'text') throw new Error('Textannotation fehlt')
+    expect(after.text.split('\n').length).toBeGreaterThan(before)
+    for (const line of after.text.split('\n')) {
+      expect(after.x + line.length * 28 * 0.55).toBeLessThanOrEqual(600)
+    }
+    // Größe und neuer Umbruch sind zusammen ein Undo-Schritt.
+    store.undo()
+    expect(store.pages[0]!.annotations[0]).toMatchObject({ fontSize: 14, text: original })
+    wrapper.unmount()
+  })
+
   it('ignoriert Klicks im Auswahl-Werkzeug', async () => {
     const { store, wrapper } = setup()
     await wrapper.get('[data-testid="overlay"]').trigger('pointerdown', { button: 0 })

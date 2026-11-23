@@ -9,6 +9,11 @@ export interface WrapResult {
   text: string
   /** Stellen im Ausgangstext, an denen ein Umbruch zusätzlich eingefügt wurde (Wortteilung). */
   inserted: number[]
+  /**
+   * Stellen im Ergebnis, an denen ein Leerzeichen zum Umbruch wurde („weiche“ Umbrüche).
+   * Sie lassen sich mit `unwrapSoft` zurücknehmen, z. B. wenn der Text verschoben wird.
+   */
+  soft: number[]
 }
 
 export type MeasureText = (text: string) => number
@@ -25,10 +30,21 @@ function fitCount(line: string, from: number, maxWidth: number, measure: Measure
   return lo
 }
 
-export function wrapTextToWidth(text: string, maxWidth: number, measure: MeasureText): WrapResult {
+/**
+ * @param splitWords `false`: Wörter ohne Leerzeichen bleiben ganz (ragen dann über die
+ * Breite hinaus). So entstehen nur weiche Umbrüche, die sich vollständig zurücknehmen lassen.
+ */
+export function wrapTextToWidth(
+  text: string,
+  maxWidth: number,
+  measure: MeasureText,
+  splitWords = true,
+): WrapResult {
   const inserted: number[] = []
-  if (!(maxWidth > 0)) return { text, inserted }
+  const soft: number[] = []
+  if (!(maxWidth > 0)) return { text, inserted, soft }
   let base = 0
+  let outBase = 0
   const lines = text.split('\n').map((line) => {
     let out = ''
     let pos = 0
@@ -38,20 +54,65 @@ export function wrapTextToWidth(text: string, maxWidth: number, measure: Measure
       const space = line.lastIndexOf(' ', pos + n)
       if (space > pos) {
         out += `${line.slice(pos, space)}\n`
+        soft.push(outBase + out.length - 1)
         pos = space + 1
-      } else {
+      } else if (splitWords) {
         out += `${line.slice(pos, pos + n)}\n`
         inserted.push(base + pos + n)
         pos += n
+      } else {
+        // Überlanges Wort ganz lassen und erst am nächsten Leerzeichen umbrechen.
+        const next = line.indexOf(' ', pos + n)
+        if (next < 0) break
+        out += `${line.slice(pos, next)}\n`
+        soft.push(outBase + out.length - 1)
+        pos = next + 1
       }
     }
     base += line.length + 1
-    return out + line.slice(pos)
+    const full = out + line.slice(pos)
+    outBase += full.length + 1
+    return full
   })
-  return { text: lines.join('\n'), inserted }
+  return { text: lines.join('\n'), inserted, soft }
+}
+
+/** Nimmt weiche Umbrüche zurück (Umbruch → Leerzeichen); die Textlänge bleibt gleich. */
+export function unwrapSoft(text: string, soft: readonly number[]): string {
+  if (soft.length === 0) return text
+  const chars = text.split('')
+  for (const i of soft) if (chars[i] === '\n') chars[i] = ' '
+  return chars.join('')
+}
+
+/**
+ * Überträgt weiche Umbrüche auf einen bearbeiteten Text: Stellen vor der Änderung
+ * bleiben, Stellen dahinter verschieben sich, Stellen im geänderten Bereich entfallen.
+ */
+export function adjustSoftBreaks(
+  oldText: string,
+  newText: string,
+  soft: readonly number[],
+): number[] {
+  if (soft.length === 0) return []
+  const limit = Math.min(oldText.length, newText.length)
+  let prefix = 0
+  while (prefix < limit && oldText[prefix] === newText[prefix]) prefix++
+  let suffix = 0
+  while (
+    suffix < limit - prefix &&
+    oldText[oldText.length - 1 - suffix] === newText[newText.length - 1 - suffix]
+  ) {
+    suffix++
+  }
+  const delta = newText.length - oldText.length
+  return soft.flatMap((i) => {
+    const next = i < prefix ? i : i >= oldText.length - suffix ? i + delta : -1
+    return next >= 0 && newText[next] === '\n' ? [next] : []
+  })
 }
 
 /** Position der Schreibmarke nach dem Umbruch (verschiebt sich nur durch Wortteilungen). */
-export function caretAfterWrap(caret: number, result: WrapResult): number {
+export function caretAfterWrap(caret: number, result: Pick<WrapResult, 'inserted'>): number {
   return caret + result.inserted.filter((i) => i < caret).length
 }

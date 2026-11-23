@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** Rechte Seitenleiste des privaten Builds: KI-Schwärzung und Fragen zum Dokument. */
+/** Rechte Seitenleiste des privaten Builds: Schwärzen, Fragen, Formular, Bilder, Text. */
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { isMod, isPlainKey, isTypingTarget, modalOpen } from '@/lib/shortcuts'
@@ -8,13 +8,15 @@ import AskPanel from './AskPanel.vue'
 import FormPanel from './FormPanel.vue'
 import ImagePanel from './ImagePanel.vue'
 import RedactionPanel from './RedactionPanel.vue'
+import TextPanel from './TextPanel.vue'
 
-type Tab = 'redact' | 'ask' | 'form' | 'images'
+type Tab = 'redact' | 'ask' | 'form' | 'images' | 'text'
 const TABS: { id: Tab; label: string }[] = [
   { id: 'redact', label: 'Schwärzen' },
   { id: 'ask', label: 'Fragen' },
   { id: 'form', label: 'Formular' },
   { id: 'images', label: 'Bilder' },
+  { id: 'text', label: 'Text' },
 ]
 const tab = ref<Tab>('redact')
 const root = ref<HTMLElement | null>(null)
@@ -30,9 +32,9 @@ function clickAction(kind: 'primary' | 'secondary' | 'apply'): boolean {
 
 async function selectTab(id: Tab): Promise<void> {
   tab.value = id
-  if (id === 'ask') {
+  if (id === 'ask' || id === 'text') {
     await nextTick()
-    root.value?.querySelector<HTMLTextAreaElement>('#private-panel-ask textarea')?.focus()
+    root.value?.querySelector<HTMLTextAreaElement>(`#private-panel-${id} textarea`)?.focus()
   }
 }
 
@@ -46,7 +48,7 @@ function onKey(e: KeyboardEvent): void {
     return
   }
   if (!isPlainKey(e) || e.shiftKey) return
-  const index = ['1', '2', '3', '4'].indexOf(e.key)
+  const index = ['1', '2', '3', '4', '5'].indexOf(e.key)
   const id = TABS[index]?.id
   if (id) {
     e.preventDefault()
@@ -72,7 +74,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         role="tab"
         :aria-selected="tab === t.id"
         :aria-controls="`private-panel-${t.id}`"
-        class="flex-1 px-2 py-2 font-medium"
+        class="flex-1 px-1 py-2 font-medium"
         :class="
           tab === t.id
             ? 'border-b-2 pdf-control-accent-border pdf-control-info'
@@ -121,6 +123,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="flex min-h-0 flex-1 flex-col"
     >
       <ImagePanel :active="tab === 'images'" />
+    </div>
+    <div
+      v-show="tab === 'text'"
+      id="private-panel-text"
+      role="tabpanel"
+      aria-labelledby="private-tab-text"
+      class="flex min-h-0 flex-1 flex-col"
+    >
+      <TextPanel />
     </div>
   </aside>
 </template>
