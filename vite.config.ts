@@ -118,6 +118,30 @@ function globalFooter(enabled: boolean): Plugin {
   }
 }
 
+/**
+ * Öffentliche Variante: Favicon ausschließlich vom Server beziehen.
+ * Die Datei liegt dort in /var/www/kodinitools.com/public/ und wird unter der
+ * Hauptadresse ausgeliefert. Der Build enthält deshalb kein eigenes Favicon
+ * (siehe `publicDir` unten). Abweichende Adresse: `KODINI_FAVICON_URL`.
+ */
+function serverFavicon(): Plugin {
+  const url = process.env.KODINI_FAVICON_URL ?? 'https://kodinitools.com/favicon.ico'
+  return {
+    name: 'kodini-server-favicon',
+    transformIndexHtml: {
+      // Vor Vites eigener HTML-Verarbeitung, die "/favicon.ico" sonst auf die Base umschreibt.
+      order: 'pre',
+      handler(html) {
+        const link = /<link rel="icon" href="[^"]*"\s*\/?>/
+        if (!link.test(html)) {
+          throw new Error('index.html: <link rel="icon"> nicht gefunden (serverFavicon).')
+        }
+        return html.replace(link, () => `<link rel="icon" href="${url}" />`)
+      },
+    },
+  }
+}
+
 /** Private Seite: nicht indexieren, keine Canonical-URL der öffentlichen App. */
 function privateHtml(): Plugin {
   return {
@@ -151,7 +175,7 @@ export default defineConfig(({ mode }) => {
       vueDevTools(),
       globalNavigation(!isPrivate),
       globalFooter(!isPrivate),
-      ...(isPrivate ? [privateHtml()] : []),
+      ...(isPrivate ? [privateHtml()] : [serverFavicon()]),
     ],
     resolve: {
       alias: {
@@ -168,6 +192,9 @@ export default defineConfig(({ mode }) => {
           },
         }
       : undefined,
+    // public/ enthält nur das Favicon der privaten Variante. Die öffentliche Variante
+    // bezieht ihres vom Server (serverFavicon) und kopiert deshalb nichts aus public/.
+    publicDir: isPrivate ? 'public' : false,
     build: {
       outDir: isPrivate ? 'dist-privat' : 'dist',
       // pdf.js + pdf-lib landen im lazy geladenen Editor-Chunk (~860 kB, ~310 kB gzip).
