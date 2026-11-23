@@ -14,10 +14,18 @@ import { useI18n } from '@/i18n'
 import { HIGHLIGHT_OPACITY } from '@/services/pdfExport'
 import { displaySize, normalizeRotation, TEXT_LINE_HEIGHT } from '@/lib/geometry'
 import type { TextLine } from '@/lib/textLines'
-import { caretAfterWrap, wrapTextToWidth, type WrapResult } from '@/lib/textWrap'
+import {
+  CSS_FONTS,
+  longestLineWidth,
+  minTextWidth,
+  reflowText,
+  sameBreaks,
+  type Reflow,
+} from '@/lib/textLayout'
+import { adjustSoftBreaks, caretAfterWrap, unwrapSoft } from '@/lib/textWrap'
 import { getTextLines } from '@/services/pdfRenderer'
 import { useDocumentStore } from '@/stores/document'
-import type { Annotation, FontFamily, PageRef, TextAnnotation } from '@/types/pdf'
+import type { Annotation, PageRef, TextAnnotation } from '@/types/pdf'
 
 const props = defineProps<{ page: PageRef }>()
 const emit = defineEmits<{ requestSignature: [] }>()
@@ -28,12 +36,6 @@ const { t } = useI18n()
 const MIN_SIZE = 4
 /** Bis zu dieser Zeigerbewegung (Bildschirmpixel) gilt ein Drücken als Klick. */
 const CLICK_TOLERANCE_PX = 3
-/** Bildschirmschriften passend zu den PDF-Standardschriften im Export. */
-const CSS_FONTS: Record<FontFamily, string> = {
-  sans: 'Helvetica, Arial, sans-serif',
-  serif: '"Times New Roman", Times, serif',
-  mono: '"Courier New", Courier, monospace',
-}
 const SIGNATURE_WIDTH = 160
 /** Darstellung echter Schwärzungen im Editor: halbtransparent, damit man sieht, was entfernt wird. */
 function redactPreview(color: string): string {
@@ -52,11 +54,6 @@ const FormOverlay = __PRIVATE__
 const ImageOverlay = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/ImageOverlay.vue'))
   : null
-/** KI-Umschreiben unter ausgewählten Textfeldern – nur im privaten Build. */
-const TextAssist = __PRIVATE__
-  ? defineAsyncComponent(() => import('@/private/components/TextAssist.vue'))
-  : null
-
 const rotation = computed(() => normalizeRotation(props.page.baseRotation + props.page.rotation))
 const size = computed(() => displaySize(props.page.box, rotation.value))
 const zoom = computed(() => store.zoom)
@@ -72,13 +69,6 @@ const editingId = ref<string | null>(null)
 /** Undo-Gruppe der laufenden Textbearbeitung (Tippen = ein Schritt). */
 let editGroup: string | null = null
 const renderError = ref<string | null>(null)
-
-/** Ausgewähltes Textfeld dieser Seite (für die KI-Leiste im privaten Build). */
-const selectedText = computed(() => {
-  if (!TextAssist) return null
-  const a = props.page.annotations.find((x) => x.id === store.selectedAnnotationId)
-  return a?.kind === 'text' ? a : null
-})
 
 interface DragState {
   mode: 'move' | 'resize' | 'create'
@@ -291,6 +281,25 @@ function onPointerMove(e: PointerEvent): void {
   const a = props.page.annotations.find((x) => x.id === d.annotationId)
   if (!a) return
 
+  if (d.mode === 'move' && a.kind === 'text') {
+    // Text darf überall auf die Seite: rechts wird er schmaler umbrochen statt blockiert.
+    const unwrapped = unwrapSoft(a.text, a.softBreaks ?? [])
+    const keep =
+      a.replacesKey === undefined ? minTextWidth(unwrapped, a) : longestLineWidth(unwrapped, a)
+    const x = clamp(d.orig.x + dx, 0, size.value.width - Math.min(keep, size.value.width))
+    const r = reflow(a, a.text, a.softBreaks ?? [], x)
+    const text = r?.text ?? a.text
+    const height = text.split('\n').length * a.fontSize * TEXT_LINE_HEIGHT
+    const y = clamp(d.orig.y + dy, 0, size.value.height - Math.min(height, size.value.height))
+    const changed = r && (r.text !== a.text || !sameBreaks(a.softBreaks, r.softBreaks))
+    store.updateAnnotation(
+      props.page.id,
+      a.id,
+      changed ? { x, y, text: r.text, softBreaks: r.softBreaks } : { x, y },
+      d.group,
+    )
+    return
+  }
   if (d.mode === 'move') {
     store.updateAnnotation(
       props.page.id,
@@ -354,35 +363,43 @@ function onPointerUp(e: PointerEvent): void {
 }
 
 // ---- Zeilenumbruch eingefügter Texte --------------------------------------
-let measureContext: CanvasRenderingContext2D | null | undefined
+/** Umbruch am rechten Rand dieser Seite, siehe `reflowText`. */
+function reflow(
+  a: TextAnnotation,
+  text?: string,
+  softBreaks?: readonly number[],
+  x?: number,
+): Reflow | null {
+  return reflowText(a, {
+    pageWidth: size.value.width,
+    ...(text !== undefined ? { text } : {}),
+    ...(softBreaks !== undefined ? { softBreaks } : {}),
+    ...(x !== undefined ? { x } : {}),
+  })
+}
 
-/** Textbreite in Seitenpunkten; ohne Canvas (z. B. Tests) eine Schätzung wie in `boxOf`. */
-function textWidth(text: string, a: TextAnnotation): number {
-  if (measureContext === undefined) {
-    try {
-      measureContext = document.createElement('canvas').getContext('2d')
-    } catch {
-      measureContext = null
-    }
-  }
-  if (!measureContext) return text.length * a.fontSize * 0.55
-  measureContext.font = `${a.fontSize}px ${CSS_FONTS[a.font ?? 'sans']}`
-  return measureContext.measureText(text).width
+/** Übernimmt einen neuen Umbruch, falls er vom gespeicherten Stand abweicht. */
+function applyReflow(a: TextAnnotation, group?: string): void {
+  const r = reflow(a)
+  if (!r || (r.text === a.text && sameBreaks(a.softBreaks, r.softBreaks))) return
+  store.updateAnnotation(props.page.id, a.id, { text: r.text, softBreaks: r.softBreaks }, group)
 }
 
 /**
- * Bricht zu lange Zeilen am rechten Seitenrand fest um. Das Textfeld selbst bricht nicht
- * weich um (`wrap="off"`), denn Anzeige und Export kennen nur echte Umbrüche.
- * Ersetzte PDF-Zeilen („Text bearbeiten“) bleiben einzeilig.
+ * Größe/Schrift in der Werkzeugleiste geändert: bereits umbrochene Texte neu umbrechen
+ * (gleiche Undo-Gruppe wie die Änderung selbst).
  */
-function wrapForPage(a: TextAnnotation, text: string): WrapResult | null {
-  if (a.replacesKey !== undefined) return null
-  // Etwas Reserve, weil die PDF-Schrift geringfügig breiter laufen kann als die Bildschirmschrift.
-  const available = size.value.width - a.x - a.fontSize * 0.25
-  const maxWidth = Math.max(available, a.fontSize * 4)
-  const result = wrapTextToWidth(text, maxWidth, (s) => textWidth(s, a))
-  return result.text === text ? null : result
-}
+watch(
+  () =>
+    props.page.annotations
+      .map((a) => (a.kind === 'text' ? `${a.id}:${a.fontSize}:${a.font ?? ''}` : ''))
+      .join('|'),
+  () => {
+    for (const a of props.page.annotations) {
+      if (a.kind === 'text' && a.softBreaks !== undefined) applyReflow(a, `style:${a.id}`)
+    }
+  },
+)
 
 /**
  * Beendet die Textbearbeitung und entfernt leere Textannotationen.
@@ -399,8 +416,7 @@ function stopEditing(): void {
     store.removeAnnotation(props.page.id, a.id, group)
   } else if (a?.kind === 'text') {
     // Auffangnetz, z. B. nach Eingabe per IME oder für ältere, zu lange Texte.
-    const wrapped = wrapForPage(a, a.text)
-    if (wrapped) store.updateAnnotation(props.page.id, a.id, { text: wrapped.text }, group)
+    applyReflow(a, group)
   }
   // Leere Bearbeitung (nichts getippt) hinterlässt keinen Undo-Schritt.
   store.closeHistoryGroup()
@@ -444,18 +460,24 @@ onBeforeUnmount(() => document.removeEventListener('focusout', onDocumentFocusOu
 watch(() => store.tool, stopEditing, { flush: 'sync' })
 
 function onTextInput(a: Annotation, e: Event): void {
+  if (a.kind !== 'text') return
   const el = e.target as HTMLTextAreaElement
   let value = el.value
+  let softBreaks = adjustSoftBreaks(a.text, value, a.softBreaks ?? [])
   // Während einer IME-Eingabe den Text nicht verändern (Umbruch folgt beim Beenden).
   const composing = e instanceof InputEvent && e.isComposing
-  const wrapped = a.kind === 'text' && !composing ? wrapForPage(a, value) : null
-  if (wrapped) {
-    const caret = caretAfterWrap(el.selectionStart ?? value.length, wrapped)
-    value = wrapped.text
-    el.value = value
-    el.setSelectionRange(caret, caret)
+  const r = composing ? null : reflow(a, value, softBreaks)
+  if (r) {
+    if (r.text !== value) {
+      const caret = caretAfterWrap(el.selectionStart ?? value.length, r)
+      el.value = r.text
+      el.setSelectionRange(caret, caret)
+    }
+    value = r.text
+    softBreaks = r.softBreaks
   }
-  store.updateAnnotation(props.page.id, a.id, { text: value }, editGroup ?? undefined)
+  const patch = a.replacesKey === undefined ? { text: value, softBreaks } : { text: value }
+  store.updateAnnotation(props.page.id, a.id, patch, editGroup ?? undefined)
 }
 
 onBeforeUnmount(stopEditing)
@@ -700,14 +722,6 @@ function px(v: number): string {
       <component :is="FormOverlay" v-if="FormOverlay" :page="page" :zoom="zoom" />
       <component :is="SuggestionOverlay" v-if="SuggestionOverlay" :page="page" :zoom="zoom" />
       <component :is="ImageOverlay" v-if="ImageOverlay" :page="page" :zoom="zoom" />
-      <component
-        :is="TextAssist"
-        v-if="TextAssist && selectedText"
-        :page-id="page.id"
-        :annotation="selectedText"
-        :zoom="zoom"
-      />
-
       <div
         v-if="preview"
         class="pointer-events-none absolute border border-yellow-600"

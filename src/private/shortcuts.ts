@@ -13,7 +13,10 @@ export const PRIVATE_SHORTCUTS: ShortcutGroup[] = [
   {
     title: 'Privat: Seitenleiste rechts',
     items: [
-      { keys: ['1', '2', '3', '4'], label: 'Reiter Schwärzen / Fragen / Formular / Bilder' },
+      {
+        keys: ['1', '2', '3', '4', '5'],
+        label: 'Reiter Schwärzen / Fragen / Formular / Bilder / Text',
+      },
       {
         keys: ['Strg+Enter'],
         label: 'Hauptaktion: Seite prüfen / KI ausfüllen / Bilder mit KI suchen',
@@ -27,7 +30,7 @@ export const PRIVATE_SHORTCUTS: ShortcutGroup[] = [
     ],
   },
   {
-    title: 'Privat: KI-Leiste am Textfeld',
+    title: 'Privat: Reiter Text (Text auf der Seite ausgewählt)',
     items: [
       {
         keys: ['Alt+1', 'Alt+2', 'Alt+3', 'Alt+4'],

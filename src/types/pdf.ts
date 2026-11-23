@@ -45,6 +45,11 @@ export interface TextAnnotation extends AnnotationBase {
   replacesKey?: string
   /** Zugehörige Abdeckung; wird mit dem Text zusammen gelöscht. */
   coverId?: string
+  /**
+   * Stellen in `text`, an denen der Editor automatisch am Seitenrand umbrochen hat.
+   * Diese Umbrüche werden neu gesetzt, wenn Text, Position oder Schrift sich ändern.
+   */
+  softBreaks?: number[]
 }
 
 export interface HighlightAnnotation extends AnnotationBase {

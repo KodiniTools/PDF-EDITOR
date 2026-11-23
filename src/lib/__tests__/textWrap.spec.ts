@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { caretAfterWrap, wrapTextToWidth } from '@/lib/textWrap'
+import { adjustSoftBreaks, caretAfterWrap, unwrapSoft, wrapTextToWidth } from '@/lib/textWrap'
 
 /** Jedes Zeichen ist eine Einheit breit. */
 const measure = (s: string) => s.length
@@ -10,6 +10,7 @@ describe('wrapTextToWidth', () => {
     expect(wrapTextToWidth('kurz\nauch kurz', 10, measure)).toEqual({
       text: 'kurz\nauch kurz',
       inserted: [],
+      soft: [],
     })
   })
 
@@ -47,5 +48,49 @@ describe('wrapTextToWidth', () => {
     expect(wrapTextToWidth('abc', 0.5, measure).text).toBe('a\nb\nc')
     expect(wrapTextToWidth('abc', 0, measure).text).toBe('abc')
     expect(wrapTextToWidth('abc', Number.NaN, measure).text).toBe('abc')
+  })
+
+  it('meldet weiche Umbrüche, die sich zurücknehmen und neu setzen lassen', () => {
+    const source = 'eins zwei drei vier\nfest fünf sechs sieben'
+    const narrow = wrapTextToWidth(source, 10, measure)
+    expect(narrow.text).toBe('eins zwei\ndrei vier\nfest fünf\nsechs\nsieben')
+    expect(narrow.soft).toEqual([9, 29, 35])
+    // Zurücknehmen ergibt den Ausgangstext; der von Hand gesetzte Umbruch bleibt.
+    expect(unwrapSoft(narrow.text, narrow.soft)).toBe(source)
+    const wide = wrapTextToWidth(unwrapSoft(narrow.text, narrow.soft), 100, measure)
+    expect(wide).toEqual({ text: source, inserted: [], soft: [] })
+  })
+
+  it('lässt überlange Wörter auf Wunsch ganz und bricht nur an Leerzeichen um', () => {
+    const source = 'ab abcdefghij cd ef'
+    const r = wrapTextToWidth(source, 4, measure, false)
+    expect(r.text).toBe('ab\nabcdefghij\ncd\nef')
+    expect(r.inserted).toEqual([])
+    expect(unwrapSoft(r.text, r.soft)).toBe(source)
+    expect(wrapTextToWidth('abcdefghij', 4, measure, false).text).toBe('abcdefghij')
+  })
+
+  it('ignoriert weiche Umbrüche, die nicht mehr auf einen Umbruch zeigen', () => {
+    expect(unwrapSoft('ab\ncd', [0, 2, 99])).toBe('ab cd')
+  })
+})
+
+describe('adjustSoftBreaks', () => {
+  const text = 'aaa\nbbb\nccc'
+
+  it('behält Stellen vor der Änderung und verschiebt Stellen dahinter', () => {
+    // Einfügen in der mittleren Zeile.
+    expect(adjustSoftBreaks(text, 'aaa\nbbXXb\nccc', [3, 7])).toEqual([3, 9])
+    // Löschen am Anfang.
+    expect(adjustSoftBreaks(text, 'a\nbbb\nccc', [3, 7])).toEqual([1, 5])
+    // Anhängen am Ende.
+    expect(adjustSoftBreaks(text, `${text}!`, [3, 7])).toEqual([3, 7])
+  })
+
+  it('verwirft Stellen im geänderten Bereich', () => {
+    // Der erste Umbruch wurde durch ein Leerzeichen ersetzt.
+    expect(adjustSoftBreaks(text, 'aaa bbb\nccc', [3, 7])).toEqual([7])
+    // Alles ersetzt.
+    expect(adjustSoftBreaks(text, 'neu', [3, 7])).toEqual([])
   })
 })

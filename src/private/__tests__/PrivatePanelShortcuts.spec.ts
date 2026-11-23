@@ -13,6 +13,7 @@ vi.mock('@/private/components/RedactionPanel.vue', () => ({ default: { render: (
 vi.mock('@/private/components/AskPanel.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/private/components/FormPanel.vue', () => ({ default: { render: () => null } }))
 vi.mock('@/private/components/ImagePanel.vue', () => ({ default: { render: () => null } }))
+vi.mock('@/private/components/TextPanel.vue', () => ({ default: { render: () => null } }))
 
 /** Ersatz für einen Reiter: Buttons mit data-shortcut wie in den echten Panels. */
 function panelStub(name: string) {
@@ -41,6 +42,7 @@ function mountPanel() {
         AskPanel: panelStub('ask'),
         FormPanel: panelStub('form'),
         ImagePanel: panelStub('images'),
+        TextPanel: panelStub('text'),
       },
     },
   })
@@ -53,7 +55,7 @@ function press(key: string, init: KeyboardEventInit = {}, target: EventTarget = 
 }
 
 describe('PrivatePanel – Tastenkürzel', () => {
-  it('wechselt Reiter mit 1–4 und löst die Aktionen des sichtbaren Reiters aus', async () => {
+  it('wechselt Reiter mit 1–5 und löst die Aktionen des sichtbaren Reiters aus', async () => {
     const w = mountPanel()
     press('3')
     await flushPromises()
@@ -63,6 +65,14 @@ describe('PrivatePanel – Tastenkürzel', () => {
     press('Enter', { ctrlKey: true, shiftKey: true })
     press('Enter', { ctrlKey: true, altKey: true })
     expect(clicks.list).toEqual(['form:primary', 'form:secondary', 'form:apply'])
+  })
+
+  it('springt mit 5 in das Textfeld des Reiters „Text“', async () => {
+    const w = mountPanel()
+    press('5')
+    await flushPromises()
+    expect(w.get('[data-testid="private-tab-text"]').attributes('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(w.get('#private-panel-text textarea').element)
   })
 
   it('springt mit 2 in das Fragefeld', async () => {
