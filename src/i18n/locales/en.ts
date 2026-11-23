@@ -85,6 +85,7 @@ export const en: Record<MessageKey, string> = {
   'toolbar.alignLeft': 'Align left',
   'toolbar.alignCenter': 'Centre',
   'toolbar.alignRight': 'Align right',
+  'toolbar.contextHint': 'Click a text or image to set its format and position.',
   'toolbar.position': 'Position of text or image',
   'toolbar.positionHint':
     'Position in mm: X from the left, Y from the top edge of the page. The arrows change it by 1 mm.',

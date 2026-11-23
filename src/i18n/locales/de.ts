@@ -89,6 +89,7 @@ export const de = {
   'toolbar.alignLeft': 'Linksbündig',
   'toolbar.alignCenter': 'Zentriert',
   'toolbar.alignRight': 'Rechtsbündig',
+  'toolbar.contextHint': 'Text oder Bild anklicken, um Format und Position einzustellen.',
   'toolbar.position': 'Position von Text oder Bild',
   'toolbar.positionHint':
     'Position in mm: X ab linkem, Y ab oberem Seitenrand. Pfeile ändern um 1 mm.',
