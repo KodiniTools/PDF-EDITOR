@@ -68,6 +68,8 @@ export const de = {
     'Scan oder Foto (JPEG, PNG, WebP, GIF) als neue Seite übernehmen. Auf Handy/Tablet öffnet sich die Kamera. (F)',
   'toolbar.newDocument': 'Neues Dokument',
   'toolbar.newDocumentHint': 'Leeres Dokument anlegen und selbst gestalten (N)',
+  'toolbar.newPage': 'Neue Seite',
+  'toolbar.newPageHint': 'Leere Seiten an das geöffnete Dokument anhängen (N)',
   'toolbar.tools': 'Werkzeuge',
   'toolbar.image': 'Bild',
   'toolbar.imageHint': 'Bild (PNG, JPEG, WebP, GIF) auf der aktuellen Seite einfügen (B)',
@@ -158,6 +160,7 @@ export const de = {
   'export.printMany': '{n} Seiten drucken',
 
   'newDoc.title': 'Neues Dokument',
+  'newDoc.titleAppend': 'Neue Seite',
   'newDoc.intro':
     'Leere Seiten anlegen und danach mit Text, Bildern, Markierungen und Signatur selbst gestalten.',
   'newDoc.format': 'Format',
@@ -217,7 +220,7 @@ export const de = {
   'shortcuts.file': 'Datei',
   'shortcuts.file.open': 'PDF öffnen bzw. hinzufügen',
   'shortcuts.file.scan': 'Scan / Foto als Seite übernehmen',
-  'shortcuts.file.new': 'Neues Dokument',
+  'shortcuts.file.new': 'Neues Dokument, bei geöffnetem Dokument neue Seite',
   'shortcuts.file.export': 'Exportieren (Seitenauswahl im Dialog)',
   'shortcuts.file.print': 'Drucken (Seitenauswahl im Dialog)',
   'shortcuts.tools': 'Werkzeuge',

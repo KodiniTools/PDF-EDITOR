@@ -31,6 +31,9 @@ const pages = ref<number | string>(1)
 const creating = ref(false)
 const error = ref<string | null>(null)
 
+/** Beim Öffnen festgehalten: Mit offenem Dokument werden Seiten angehängt („Neue Seite“). */
+const appending = store.hasDocument
+
 const busy = computed(() => creating.value || store.busy)
 const canCreate = computed(() => !busy.value && isValidPageCount(pages.value))
 
@@ -94,7 +97,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="w-full max-w-md rounded-xl pdf-control-dialog pdf-control-surface p-5 text-sm shadow-xl"
       data-testid="new-document-dialog"
     >
-      <h2 id="new-doc-title" class="text-base font-semibold">{{ t('newDoc.title') }}</h2>
+      <h2 id="new-doc-title" class="text-base font-semibold">
+        {{ t(appending ? 'newDoc.titleAppend' : 'newDoc.title') }}
+      </h2>
       <p class="mt-1 pdf-control-muted">{{ t('newDoc.intro') }}</p>
 
       <div class="mt-4 grid grid-cols-2 gap-3">
@@ -149,7 +154,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <p v-if="!isValidPageCount(pages)" class="mt-3 pdf-control-error" data-testid="new-doc-range">
         {{ t('newDoc.pagesRange', { max: MAX_BLANK_PAGES }) }}
       </p>
-      <p v-if="store.hasDocument" class="mt-3 text-xs pdf-control-muted">
+      <p v-if="appending" class="mt-3 text-xs pdf-control-muted">
         {{ t('newDoc.appendNote') }}
       </p>
       <p v-if="error" role="alert" class="mt-3 whitespace-pre-line pdf-control-error">

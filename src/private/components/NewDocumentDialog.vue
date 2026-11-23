@@ -22,6 +22,9 @@ const doc = useDocumentStore()
 const gen = useGenerateStore()
 const models = useModelStore()
 
+/** Beim Öffnen festgehalten: Mit offenem Dokument werden Seiten angehängt („Neue Seite“). */
+const appending = doc.hasDocument
+
 const format = ref<PageFormat>('A4')
 const orientation = ref<Orientation>('portrait')
 const pages = ref(1)
@@ -87,7 +90,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="w-full max-w-lg rounded-xl pdf-control-dialog pdf-control-surface p-5 text-sm shadow-xl"
       data-testid="new-document-dialog"
     >
-      <h2 id="new-doc-title" class="text-base font-semibold">Neues Dokument</h2>
+      <h2 id="new-doc-title" class="text-base font-semibold">
+        {{ appending ? 'Neue Seite' : 'Neues Dokument' }}
+      </h2>
+      <p v-if="appending" class="mt-1 text-xs pdf-control-muted" data-testid="new-doc-append-note">
+        Die neuen Seiten werden an das geöffnete Dokument angehängt.
+      </p>
 
       <div class="mt-4 grid grid-cols-2 gap-3">
         <label class="flex flex-col gap-1">

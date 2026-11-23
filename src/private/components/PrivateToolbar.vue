@@ -6,6 +6,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { isPlainKey } from '@/lib/shortcuts'
+import { useDocumentStore } from '@/stores/document'
 
 import { formatUsd, MODEL_INFO, modelLabel } from '../models'
 import { useCostStore } from '../stores/costs'
@@ -13,6 +14,7 @@ import { useModelStore } from '../stores/model'
 import CostDialog from './CostDialog.vue'
 import NewDocumentDialog from './NewDocumentDialog.vue'
 
+const doc = useDocumentStore()
 const models = useModelStore()
 const costs = useCostStore()
 const showNew = ref(false)
@@ -86,10 +88,14 @@ const usageTitle = computed(() => {
       type="button"
       class="rounded-md border pdf-control-border pdf-control-surface px-3 py-1.5 pdf-control-hover"
       data-testid="new-document"
-      title="Neues Dokument (N)"
+      :title="
+        doc.hasDocument
+          ? 'Neue Seiten an das geöffnete Dokument anhängen (N)'
+          : 'Neues Dokument (N)'
+      "
       @click="showNew = true"
     >
-      Neues Dokument
+      {{ doc.hasDocument ? 'Neue Seite' : 'Neues Dokument' }}
     </button>
     <label class="flex items-center gap-1 pdf-control-muted" title="Modell für alle KI-Funktionen">
       <span class="hidden lg:inline">KI-Modell</span>
