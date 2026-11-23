@@ -329,12 +329,12 @@ function chooseTool(id: Tool): void {
       v-else
       type="button"
       class="tb-btn"
-      :title="t('toolbar.newDocumentHint')"
+      :title="t(store.hasDocument ? 'toolbar.newPageHint' : 'toolbar.newDocumentHint')"
       :disabled="store.busy"
       data-testid="new-document"
       @click="showNewDocument = true"
     >
-      {{ t('toolbar.newDocument') }}
+      {{ t(store.hasDocument ? 'toolbar.newPage' : 'toolbar.newDocument') }}
     </button>
     <NewDocumentDialog v-if="showNewDocument" @close="showNewDocument = false" />
 

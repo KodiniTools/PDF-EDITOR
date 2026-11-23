@@ -323,4 +323,27 @@ describe('AppToolbar', () => {
     expect(bar().find('[data-testid="highlight-color"]').exists()).toBe(true)
     expect(wrapper.find(hint).exists()).toBe(false)
   })
+
+  it('nennt den Knopf ohne Dokument „Neues Dokument“, mit geöffnetem Dokument „Neue Seite“', async () => {
+    const store = useDocumentStore()
+    const wrapper = mount(AppToolbar)
+    const button = () => wrapper.get('[data-testid="new-document"]')
+    expect(button().text()).toBe('Neues Dokument')
+
+    store.pages.push({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 595.28, height: 841.89 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    await wrapper.vm.$nextTick()
+    expect(button().text()).toBe('Neue Seite')
+
+    // Auch der Dialog trägt dann den passenden Titel.
+    await button().trigger('click')
+    expect(wrapper.get('#new-doc-title').text()).toBe('Neue Seite')
+  })
 })

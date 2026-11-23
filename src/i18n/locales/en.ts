@@ -65,6 +65,8 @@ export const en: Record<MessageKey, string> = {
     'Add a scan or photo (JPEG, PNG, WebP, GIF) as a new page. On phones and tablets the camera opens. (F)',
   'toolbar.newDocument': 'New document',
   'toolbar.newDocumentHint': 'Create a blank document and design it yourself (N)',
+  'toolbar.newPage': 'New page',
+  'toolbar.newPageHint': 'Append blank pages to the open document (N)',
   'toolbar.tools': 'Tools',
   'toolbar.image': 'Image',
   'toolbar.imageHint': 'Insert an image (PNG, JPEG, WebP, GIF) on the current page (B)',
@@ -154,6 +156,7 @@ export const en: Record<MessageKey, string> = {
   'export.printMany': 'Print {n} pages',
 
   'newDoc.title': 'New document',
+  'newDoc.titleAppend': 'New page',
   'newDoc.intro':
     'Create blank pages, then design them yourself with text, images, highlights and a signature.',
   'newDoc.format': 'Format',
@@ -213,7 +216,7 @@ export const en: Record<MessageKey, string> = {
   'shortcuts.file': 'File',
   'shortcuts.file.open': 'Open or add a PDF',
   'shortcuts.file.scan': 'Add a scan / photo as a page',
-  'shortcuts.file.new': 'New document',
+  'shortcuts.file.new': 'New document, or new page when a document is open',
   'shortcuts.file.export': 'Export (choose pages in the dialog)',
   'shortcuts.file.print': 'Print (choose pages in the dialog)',
   'shortcuts.tools': 'Tools',

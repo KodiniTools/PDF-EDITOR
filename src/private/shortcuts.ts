@@ -6,7 +6,7 @@ export const PRIVATE_SHORTCUTS: ShortcutGroup[] = [
     title: 'Privat: allgemein',
     items: [
       { keys: ['R'], label: 'Werkzeug Schwärzen' },
-      { keys: ['N'], label: 'Neues Dokument' },
+      { keys: ['N'], label: 'Neues Dokument, bei geöffnetem Dokument neue Seite' },
       { keys: ['K'], label: 'Kosten' },
     ],
   },
@@ -44,7 +44,7 @@ export const PRIVATE_SHORTCUTS: ShortcutGroup[] = [
   {
     title: 'Privat: Dialoge',
     items: [
-      { keys: ['Strg+Enter'], label: 'Neues Dokument erstellen' },
+      { keys: ['Strg+Enter'], label: 'Neues Dokument bzw. neue Seite erstellen' },
       { keys: ['Enter'], label: 'Kosten: Zahlung eintragen (im Betragsfeld)' },
       { keys: ['Esc'], label: 'Dialog schließen' },
     ],
