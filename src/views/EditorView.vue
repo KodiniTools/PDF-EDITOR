@@ -151,6 +151,12 @@ function onKeyDown(e: KeyboardEvent): void {
     else toolbar.value?.openScan()
     return
   }
+  // Privat behandelt N die eigene Toolbar (Dialog mit KI-Option).
+  if (!__PRIVATE__ && !mod && !e.altKey && !e.shiftKey && lower === 'n') {
+    e.preventDefault()
+    toolbar.value?.newDocument()
+    return
+  }
   if (!store.hasDocument) return
 
   if (mod && !e.altKey) {
@@ -349,6 +355,15 @@ onBeforeUnmount(() => {
               <template v-else>{{ t('drop.local') }}</template>
             </p>
             <p v-if="store.busy" class="pdf-editor-drop-loading">{{ t('drop.loading') }}</p>
+            <button
+              v-else-if="!isPrivate"
+              type="button"
+              class="mt-4 rounded-md border pdf-control-border px-3 py-1.5 text-sm pdf-control-hover"
+              data-testid="new-document-empty"
+              @click="toolbar?.newDocument()"
+            >
+              {{ t('drop.newDocument') }}
+            </button>
           </div>
         </div>
 

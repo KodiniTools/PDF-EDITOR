@@ -24,6 +24,7 @@ const toolbarApi = vi.hoisted(() => ({
   openFile: vi.fn<() => void>(),
   openScan: vi.fn<() => void>(),
   openImage: vi.fn<() => void>(),
+  newDocument: vi.fn<() => void>(),
 }))
 
 /** Werkzeugleiste ohne Dateidialoge; nur die von EditorView genutzte Schnittstelle. */
@@ -86,6 +87,16 @@ describe('EditorView – Tastenkürzel', () => {
     press('f')
     expect(toolbarApi.openFile).toHaveBeenCalledTimes(2)
     expect(toolbarApi.openScan).toHaveBeenCalledTimes(1)
+  })
+
+  it('öffnet „Neues Dokument“ mit N, auch ohne Dokument, aber nicht mit Strg+N', () => {
+    mountView()
+    const e = press('n')
+    expect(e.defaultPrevented).toBe(true)
+    expect(toolbarApi.newDocument).toHaveBeenCalledTimes(1)
+    // Strg+N (neues Browserfenster) bleibt unberührt.
+    expect(press('n', { ctrlKey: true }).defaultPrevented).toBe(false)
+    expect(toolbarApi.newDocument).toHaveBeenCalledTimes(1)
   })
 
   it('ignoriert Kürzel beim Tippen in Eingabefeldern', async () => {

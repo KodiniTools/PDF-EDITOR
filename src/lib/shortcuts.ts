@@ -50,6 +50,7 @@ export function coreShortcuts(): ShortcutGroup[] {
       items: [
         { keys: keys('Strg+O', 'O'), label: t('shortcuts.file.open') },
         { keys: keys('F'), label: t('shortcuts.file.scan') },
+        ...(__PRIVATE__ ? [] : [{ keys: keys('N'), label: t('shortcuts.file.new') }]),
         { keys: keys('Strg+S'), label: t('shortcuts.file.export') },
         { keys: keys('Strg+P', 'P'), label: t('shortcuts.file.print') },
       ],

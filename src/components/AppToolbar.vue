@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref } from 'vue'
 
+import NewDocumentDialog from '@/components/NewDocumentDialog.vue'
 import { useI18n } from '@/i18n'
 import { IMAGE_ACCEPT, readImageFile } from '@/lib/image'
 import { useDocumentStore } from '@/stores/document'
@@ -21,6 +22,8 @@ const isPrivate = __PRIVATE__
 const PrivateToolbar = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/PrivateToolbar.vue'))
   : null
+/** Dialog „Neues Dokument“ der öffentlichen Variante (privat: eigener Dialog in PrivateToolbar). */
+const showNewDocument = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
 const scanInput = ref<HTMLInputElement | null>(null)
@@ -192,6 +195,9 @@ const coverPresets = computed(() => [
 defineExpose({
   openFile: () => fileInput.value?.click(),
   openScan: () => scanInput.value?.click(),
+  newDocument: () => {
+    if (!isPrivate && !store.busy) showNewDocument.value = true
+  },
   openImage: () => {
     if (store.hasDocument) imageInput.value?.click()
   },
@@ -253,6 +259,18 @@ function chooseTool(id: Tool): void {
       @change="onFileChange"
     />
     <component :is="PrivateToolbar" v-if="PrivateToolbar" />
+    <button
+      v-else
+      type="button"
+      class="tb-btn"
+      :title="t('toolbar.newDocumentHint')"
+      :disabled="store.busy"
+      data-testid="new-document"
+      @click="showNewDocument = true"
+    >
+      {{ t('toolbar.newDocument') }}
+    </button>
+    <NewDocumentDialog v-if="showNewDocument" @close="showNewDocument = false" />
 
     <div v-if="store.hasDocument" class="flex flex-wrap items-center gap-2">
       <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.tools')">
