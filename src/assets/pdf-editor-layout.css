@@ -54,16 +54,6 @@
   border-radius: 16px 16px 0 0;
 }
 
-.pdf-editor-shell > .pdf-editor-toolbar .tb-primary {
-  border-color: var(--pdf-gold);
-  background: var(--pdf-gold);
-  color: #14213a;
-}
-
-.pdf-editor-shell > .pdf-editor-toolbar .tb-primary:hover:enabled {
-  background: var(--pdf-gold-hover);
-}
-
 .pdf-editor-shell > [role='alert'] {
   flex-shrink: 0;
   border-inline: 1px solid var(--pdf-border);

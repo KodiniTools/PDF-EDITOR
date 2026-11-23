@@ -107,20 +107,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <div
-    class="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+    class="fixed inset-0 z-50 grid place-items-center pdf-control-scrim p-4"
     @click.self="!busy && emit('close')"
   >
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="export-title"
-      class="w-full max-w-md rounded-xl bg-white p-5 text-sm shadow-xl"
+      class="w-full max-w-md rounded-xl pdf-control-dialog pdf-control-surface p-5 text-sm shadow-xl"
       data-testid="export-dialog"
     >
       <h2 id="export-title" class="text-base font-semibold">
         {{ mode === 'print' ? 'Drucken' : 'Exportieren' }}
       </h2>
-      <p class="mt-1 text-gray-600">
+      <p class="mt-1 pdf-control-muted">
         Welche Seiten sollen {{ mode === 'print' ? 'gedruckt werden' : 'in die PDF-Datei' }}?
       </p>
 
@@ -129,12 +129,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <label class="flex cursor-pointer items-start gap-2">
           <input v-model="scope" type="radio" value="all" class="mt-0.5" data-testid="export-all" />
           <span
-            >Alle Seiten <span class="text-gray-500">({{ store.pages.length }})</span></span
+            >Alle Seiten <span class="pdf-control-muted">({{ store.pages.length }})</span></span
           >
         </label>
         <label
           class="flex items-start gap-2"
-          :class="store.markedPages.length ? 'cursor-pointer' : 'cursor-not-allowed text-gray-400'"
+          :class="
+            store.markedPages.length ? 'cursor-pointer' : 'cursor-not-allowed pdf-control-muted'
+          "
         >
           <input
             v-model="scope"
@@ -146,7 +148,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           />
           <span>
             Nur markierte Seiten
-            <span v-if="store.markedPages.length" class="text-gray-500">
+            <span v-if="store.markedPages.length" class="pdf-control-muted">
               (Seite {{ formatPageRanges(markedNumbers) }})
             </span>
             <span v-else class="block text-xs">
@@ -165,15 +167,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           />
           <span>
             Nur aktuelle Seite
-            <span class="text-gray-500">(Seite {{ store.selectedPageIndex + 1 }})</span>
+            <span class="pdf-control-muted">(Seite {{ store.selectedPageIndex + 1 }})</span>
           </span>
         </label>
       </fieldset>
 
-      <p v-if="mode === 'export'" class="mt-4 text-xs break-all text-gray-500">
+      <p v-if="mode === 'export'" class="mt-4 text-xs break-all pdf-control-muted">
         Datei: {{ fileName }}
       </p>
-      <p v-else class="mt-4 text-xs text-gray-500">
+      <p v-else class="mt-4 text-xs pdf-control-muted">
         Gedruckt wird mit allen Änderungen. Drucker, Papierformat und Ausrichtung wählst du danach
         im Druckdialog des Browsers.
       </p>
@@ -181,7 +183,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <div class="mt-5 flex justify-end gap-2">
         <button
           type="button"
-          class="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-100 disabled:opacity-50"
+          class="rounded-md border pdf-control-border px-3 py-1.5 pdf-control-hover disabled:opacity-50"
           :disabled="busy"
           @click="emit('close')"
         >
@@ -189,7 +191,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </button>
         <button
           type="button"
-          class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
+          class="rounded-md pdf-control-primary px-3 py-1.5 disabled:opacity-50"
           :disabled="busy || count === 0"
           data-testid="export-confirm"
           @click="run"

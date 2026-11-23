@@ -1,0 +1,211 @@
+.pdf-editor-shell {
+  --pdf-control-error-text: #ffb2ba;
+  --pdf-control-error-fill: #431e2d;
+  --pdf-control-error-line: #975368;
+  --pdf-control-warning-text: #f5cf8d;
+  --pdf-control-warning-fill: #422f25;
+  --pdf-control-success-text: #9ae4b6;
+  --pdf-control-info-fill: #173749;
+  --pdf-control-hover-fill: #223655;
+  --pdf-control-scrim-fill: #040a16bd;
+}
+
+:root[data-theme='light'] .pdf-editor-shell {
+  --pdf-control-error-text: #8d1733;
+  --pdf-control-error-fill: #fff0f2;
+  --pdf-control-error-line: #d49ba8;
+  --pdf-control-warning-text: #714414;
+  --pdf-control-warning-fill: #fff3d9;
+  --pdf-control-success-text: #126440;
+  --pdf-control-info-fill: #e4f4fa;
+  --pdf-control-hover-fill: #e6edf3;
+  --pdf-control-scrim-fill: #14213a80;
+}
+
+.pdf-editor-shell :where(.pdf-editor-toolbar, .pdf-editor-private, .pdf-control-dialog) {
+  background-color: var(--pdf-panel);
+  color: var(--pdf-text);
+}
+
+:root[data-theme='dark']
+  .pdf-editor-shell
+  :where(.pdf-editor-toolbar, .pdf-editor-private, .pdf-control-dialog, .pdf-text-assist) {
+  color-scheme: dark;
+}
+
+.pdf-editor-shell :where(.pdf-control-surface) {
+  background-color: var(--pdf-panel);
+}
+.pdf-editor-shell :where(.pdf-control-raised) {
+  background-color: var(--pdf-raised);
+}
+.pdf-editor-shell :where(.pdf-control-track) {
+  background-color: var(--pdf-control-hover-fill);
+}
+.pdf-editor-shell :where(.pdf-control-border) {
+  border-color: var(--pdf-border);
+}
+.pdf-editor-shell :where(.pdf-control-muted) {
+  color: var(--pdf-muted);
+}
+.pdf-editor-shell :where(.pdf-control-text) {
+  color: var(--pdf-text);
+}
+.pdf-editor-shell :where(.pdf-control-info) {
+  color: var(--pdf-cyan);
+}
+.pdf-editor-shell :where(.pdf-control-info-bg) {
+  background-color: var(--pdf-control-info-fill);
+}
+.pdf-editor-shell :where(.pdf-control-warning) {
+  color: var(--pdf-control-warning-text);
+}
+.pdf-editor-shell :where(.pdf-control-warning-bg) {
+  background-color: var(--pdf-control-warning-fill);
+}
+.pdf-editor-shell :where(.pdf-control-success) {
+  color: var(--pdf-control-success-text);
+}
+.pdf-editor-shell :where(.pdf-control-error) {
+  color: var(--pdf-control-error-text);
+}
+.pdf-editor-shell :where(.pdf-control-error-bg) {
+  background-color: var(--pdf-control-error-fill);
+}
+.pdf-editor-shell :where(.pdf-control-error-border) {
+  border-color: var(--pdf-control-error-line);
+}
+.pdf-editor-shell :where(.pdf-control-scrim) {
+  background-color: var(--pdf-control-scrim-fill);
+}
+.pdf-editor-shell :where(.pdf-control-accent-border) {
+  border-color: var(--pdf-gold);
+}
+.pdf-editor-shell :where(.pdf-control-accent-ring) {
+  --tw-ring-color: var(--pdf-gold);
+}
+
+.pdf-editor-shell :where(.pdf-control-hover:hover:not(:disabled)) {
+  background-color: var(--pdf-control-hover-fill);
+}
+.pdf-editor-shell :where(.pdf-control-error-hover:hover:not(:disabled)) {
+  background-color: var(--pdf-control-error-fill);
+}
+.pdf-editor-shell :where(.pdf-control-text-hover:hover) {
+  color: var(--pdf-text);
+}
+.pdf-editor-shell :where(.pdf-control-error-text-hover:hover) {
+  color: var(--pdf-control-error-text);
+}
+.pdf-editor-shell :where(.pdf-control-info-hover:hover) {
+  color: var(--pdf-text);
+}
+.pdf-editor-shell :where(.pdf-control-focus-border:focus) {
+  border-color: var(--pdf-cyan);
+}
+
+.pdf-editor-shell :where(.tb-btn, .btn, .pn-btn, .pn-chip, .ta-btn, .pdf-tool-button) {
+  border-color: var(--pdf-border);
+  background-color: var(--pdf-panel);
+}
+
+.pdf-editor-shell
+  :where(.tb-btn, .btn, .pn-btn, .pn-chip, .ta-btn, .pdf-tool-button):hover:not(:disabled) {
+  background-color: var(--pdf-control-hover-fill);
+}
+
+.pdf-editor-shell
+  :where(.tb-primary, .btn-primary, .pn-primary, .ta-primary, .pdf-control-primary) {
+  border-color: var(--pdf-gold);
+  background-color: var(--pdf-gold);
+  color: #14213a;
+  font-weight: 650;
+}
+
+.pdf-editor-shell
+  :where(.tb-primary, .btn-primary, .pn-primary, .ta-primary, .pdf-control-primary):hover:not(
+    :disabled
+  ) {
+  background-color: var(--pdf-gold-hover);
+}
+
+.pdf-editor-shell :where(.pn-danger) {
+  border-color: var(--pdf-control-error-line);
+  background-color: var(--pdf-control-error-fill);
+  color: var(--pdf-control-error-text);
+}
+
+.pdf-editor-shell :where(.pn-danger):hover:not(:disabled) {
+  background-color: var(--pdf-control-error-fill);
+  border-color: var(--pdf-control-error-text);
+}
+
+.pdf-editor-shell
+  :where(.pdf-editor-toolbar, .pdf-editor-private, .pdf-control-dialog, .pdf-text-assist)
+  :where(
+    select,
+    textarea,
+    input:not([type='radio'], [type='checkbox'], [type='file'], [type='color'])
+  ) {
+  max-width: 100%;
+  border-color: var(--pdf-border);
+  background-color: var(--pdf-bg);
+  color: var(--pdf-text);
+}
+
+.pdf-editor-shell
+  :where(.pdf-editor-toolbar, .pdf-editor-private, .pdf-control-dialog, .pdf-text-assist)
+  :where(input[type='checkbox'], input[type='radio'], input[type='range']) {
+  accent-color: var(--pdf-cyan);
+}
+
+.pdf-editor-shell
+  :where(.pdf-editor-toolbar, .pdf-editor-private, .pdf-control-dialog, .pdf-text-assist)
+  :where(button, select, input, textarea, a):focus-visible,
+.pdf-control-dialog .btn:focus-within {
+  outline: 2px solid var(--pdf-cyan);
+  outline-offset: 2px;
+}
+
+.pdf-editor-shell .pdf-tool-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid var(--pdf-border);
+  border-radius: 10px;
+  background-color: var(--pdf-raised);
+}
+
+.pdf-editor-shell .pdf-tool-button {
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.pdf-editor-shell .pdf-tool-button[aria-pressed='true'] {
+  border-color: var(--pdf-gold);
+  background-color: var(--pdf-control-warning-fill);
+  color: var(--pdf-control-warning-text);
+}
+
+.pdf-private-toolbar label {
+  min-width: 0;
+}
+
+.pdf-editor-shell .pdf-control-dialog {
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  border: 1px solid var(--pdf-border);
+}
+
+.pdf-control-dialog::backdrop {
+  background-color: var(--pdf-control-scrim-fill);
+}
+
+.pdf-editor-shell .pdf-signature-canvas {
+  background-color: #f8fafc;
+}

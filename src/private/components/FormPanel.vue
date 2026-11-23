@@ -58,8 +58,8 @@ function display(field: FormField, value: string | boolean): string {
     aria-label="Formular ausfüllen"
     data-testid="form-panel"
   >
-    <div class="border-b border-gray-200 p-3">
-      <p class="text-xs text-gray-500">
+    <div class="border-b pdf-control-border p-3">
+      <p class="text-xs pdf-control-muted">
         Werte werden beim Export eingetragen und fest in die Seiten übernommen. Für Vorschläge gehen
         Stammdaten, Feldnamen und der Text der Formularseiten an Claude (Anthropic).
       </p>
@@ -94,7 +94,7 @@ function display(field: FormField, value: string | boolean): string {
           v-model="profileDraft"
           rows="8"
           :maxlength="MAX_PROFILE_LENGTH"
-          class="w-full rounded-md border border-gray-300 p-2 text-xs focus:border-blue-500 focus:outline-none"
+          class="w-full rounded-md border pdf-control-border p-2 text-xs pdf-control-focus-border focus:outline-none"
           placeholder="z. B.&#10;Name: Max Mustermann&#10;Geburtsdatum: 01.02.1980&#10;Anschrift: Hauptstr. 5, 10115 Berlin&#10;Telefon: 030 123456&#10;IBAN: DE89 …&#10;Steuer-ID: …"
           aria-label="Stammdaten"
           data-testid="form-profile"
@@ -111,31 +111,31 @@ function display(field: FormField, value: string | boolean): string {
           </button>
         </div>
       </div>
-      <p v-if="profileNotice" class="mt-2 text-xs text-green-700" role="status">
+      <p v-if="profileNotice" class="mt-2 text-xs pdf-control-success" role="status">
         {{ profileNotice }}
       </p>
       <div
         v-if="forms.status === 'suggesting'"
-        class="mt-2 flex items-center justify-between text-blue-700"
+        class="mt-2 flex items-center justify-between pdf-control-info"
       >
         <span>Claude füllt aus…</span>
         <button type="button" class="underline" @click="forms.cancel()">Abbrechen</button>
       </div>
-      <p v-if="forms.status === 'detecting'" class="mt-2 text-blue-700">Suche Formularfelder…</p>
-      <p v-if="forms.error" role="alert" class="mt-2 text-red-700">{{ forms.error }}</p>
+      <p v-if="forms.status === 'detecting'" class="mt-2 pdf-control-info">Suche Formularfelder…</p>
+      <p v-if="forms.error" role="alert" class="mt-2 pdf-control-error">{{ forms.error }}</p>
     </div>
 
     <div class="min-h-0 flex-1 overflow-auto p-2">
       <p
         v-if="forms.fields.length === 0 && forms.status === 'idle'"
-        class="p-2 text-xs text-gray-500"
+        class="p-2 text-xs pdf-control-muted"
       >
         Dieses Dokument enthält keine ausfüllbaren Formularfelder.
       </p>
       <section v-for="g in groups" :key="g.number" class="mb-3">
         <button
           type="button"
-          class="mb-1 text-xs font-medium text-gray-500 hover:underline"
+          class="mb-1 text-xs font-medium pdf-control-muted hover:underline"
           @click="doc.selectPage(g.pageId)"
         >
           Seite {{ g.number }}
@@ -144,12 +144,16 @@ function display(field: FormField, value: string | boolean): string {
           v-for="field in g.fields"
           :key="field.key"
           class="mb-2 rounded px-1 py-1"
-          :class="{ 'bg-blue-50': field.key in forms.values }"
+          :class="{ 'pdf-control-info-bg': field.key in forms.values }"
           data-testid="form-field"
         >
-          <label class="block text-xs text-gray-600" :for="`ff-${field.key}`" :title="field.name">
+          <label
+            class="block text-xs pdf-control-muted"
+            :for="`ff-${field.key}`"
+            :title="field.name"
+          >
             {{ field.context || field.label }}
-            <span v-if="field.context && field.label !== field.context" class="text-gray-400">
+            <span v-if="field.context && field.label !== field.context" class="pdf-control-muted">
               · {{ field.label }}
             </span>
           </label>
@@ -164,7 +168,7 @@ function display(field: FormField, value: string | boolean): string {
           <select
             v-else-if="field.kind === 'choice' || field.kind === 'radio'"
             :id="`ff-${field.key}`"
-            class="mt-1 w-full rounded border border-gray-300 px-1 py-1"
+            class="mt-1 w-full rounded border pdf-control-border px-1 py-1"
             :value="forms.valueOf(field)"
             @change="forms.setValue(field, ($event.target as HTMLSelectElement).value)"
           >
@@ -177,7 +181,7 @@ function display(field: FormField, value: string | boolean): string {
             v-else-if="field.multiline"
             :id="`ff-${field.key}`"
             rows="3"
-            class="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+            class="mt-1 w-full rounded border pdf-control-border px-2 py-1"
             :value="String(forms.valueOf(field))"
             :maxlength="field.maxLength || undefined"
             @input="onText(field, $event)"
@@ -186,14 +190,14 @@ function display(field: FormField, value: string | boolean): string {
             v-else
             :id="`ff-${field.key}`"
             type="text"
-            class="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+            class="mt-1 w-full rounded border pdf-control-border px-2 py-1"
             :value="String(forms.valueOf(field))"
             :maxlength="field.maxLength || undefined"
             @input="onText(field, $event)"
           />
           <div
             v-if="forms.suggestions[field.key]"
-            class="mt-1 flex items-start gap-2 rounded bg-amber-50 px-2 py-1 text-xs"
+            class="mt-1 flex items-start gap-2 rounded pdf-control-warning-bg px-2 py-1 text-xs"
             data-testid="form-suggestion"
           >
             <span class="min-w-0 flex-1" :title="forms.suggestions[field.key]!.reason">
@@ -201,14 +205,14 @@ function display(field: FormField, value: string | boolean): string {
             </span>
             <button
               type="button"
-              class="text-blue-700 underline"
+              class="pdf-control-info underline"
               @click="forms.applySuggestion(field.key)"
             >
               Übernehmen
             </button>
             <button
               type="button"
-              class="text-gray-400 hover:text-gray-700"
+              class="pdf-control-muted pdf-control-text-hover"
               :aria-label="`Vorschlag für ${field.label} verwerfen`"
               @click="forms.dismissSuggestion(field.key)"
             >
@@ -217,7 +221,7 @@ function display(field: FormField, value: string | boolean): string {
           </div>
         </div>
       </section>
-      <p v-if="forms.unsupported > 0" class="p-2 text-xs text-gray-500">
+      <p v-if="forms.unsupported > 0" class="p-2 text-xs pdf-control-muted">
         {{ forms.unsupported }} Feld(er) schreibgeschützt oder nicht unterstützt (z. B. Listen,
         Unterschriften).
       </p>
@@ -225,7 +229,7 @@ function display(field: FormField, value: string | boolean): string {
 
     <div
       v-if="forms.suggestionCount > 0 || forms.changedCount > 0"
-      class="flex gap-2 border-t border-gray-200 p-3"
+      class="flex gap-2 border-t pdf-control-border p-3"
     >
       <button
         type="button"
@@ -254,9 +258,6 @@ function display(field: FormField, value: string | boolean): string {
 @reference 'tailwindcss';
 
 .pn-btn {
-  @apply rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50;
-}
-.pn-primary {
-  @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700;
+  @apply rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50;
 }
 </style>

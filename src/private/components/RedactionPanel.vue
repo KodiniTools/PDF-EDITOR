@@ -55,8 +55,8 @@ function apply(): void {
     aria-label="KI-Schwärzung"
     data-testid="redaction-panel"
   >
-    <div class="border-b border-gray-200 p-3">
-      <p class="text-xs text-gray-500">
+    <div class="border-b pdf-control-border p-3">
+      <p class="text-xs pdf-control-muted">
         Der Text der Seiten (bei Scans das Seitenbild) wird zur Analyse an Claude (Anthropic)
         gesendet. Vorschläge prüfen, dann übernehmen.
       </p>
@@ -83,11 +83,11 @@ function apply(): void {
           Alle Seiten
         </button>
       </div>
-      <label class="mt-2 flex items-center gap-2 text-xs text-gray-600">
+      <label class="mt-2 flex items-center gap-2 text-xs pdf-control-muted">
         <input v-model="redaction.readScans" type="checkbox" :disabled="redaction.busy" />
         Gescannte Seiten per Bilderkennung lesen
       </label>
-      <div v-if="redaction.busy" class="mt-2 flex items-center justify-between text-blue-700">
+      <div v-if="redaction.busy" class="mt-2 flex items-center justify-between pdf-control-info">
         <span>
           {{ redaction.phase === 'ocr' ? 'Lese Scans…' : 'Analysiere…' }}
           <template v-if="redaction.progress.total > 1 || redaction.phase === 'ocr'">
@@ -96,20 +96,22 @@ function apply(): void {
         </span>
         <button type="button" class="underline" @click="redaction.cancel()">Abbrechen</button>
       </div>
-      <p v-if="redaction.error" role="alert" class="mt-2 text-red-700">{{ redaction.error }}</p>
-      <p v-if="notice" class="mt-2 text-green-700" role="status">{{ notice }}</p>
-      <p v-if="redaction.ocrPages > 0" class="mt-2 text-xs text-gray-600">
+      <p v-if="redaction.error" role="alert" class="mt-2 pdf-control-error">
+        {{ redaction.error }}
+      </p>
+      <p v-if="notice" class="mt-2 pdf-control-success" role="status">{{ notice }}</p>
+      <p v-if="redaction.ocrPages > 0" class="mt-2 text-xs pdf-control-muted">
         {{ redaction.ocrPages }} gescannte Seite(n) per Bilderkennung gelesen. Die Flächen sind dort
         ungenauer – bitte prüfen und bei Bedarf anpassen.
       </p>
-      <p v-if="redaction.ocrError" class="mt-2 text-xs text-amber-700">
+      <p v-if="redaction.ocrError" class="mt-2 text-xs pdf-control-warning">
         Bilderkennung teilweise fehlgeschlagen: {{ redaction.ocrError }}
       </p>
-      <p v-if="redaction.pagesWithoutText > 0" class="mt-2 text-xs text-amber-700">
+      <p v-if="redaction.pagesWithoutText > 0" class="mt-2 text-xs pdf-control-warning">
         {{ redaction.pagesWithoutText }} Seite(n) ohne erkennbaren Text – dort bitte manuell
         schwärzen.
       </p>
-      <p v-if="redaction.truncatedPages > 0" class="mt-2 text-xs text-amber-700">
+      <p v-if="redaction.truncatedPages > 0" class="mt-2 text-xs pdf-control-warning">
         {{ redaction.truncatedPages }} Seite(n) waren zu lang und wurden nur teilweise geprüft.
       </p>
     </div>
@@ -118,7 +120,7 @@ function apply(): void {
       <section v-for="g in groups" :key="g.page.id" class="mb-3">
         <button
           type="button"
-          class="mb-1 text-xs font-medium text-gray-500 hover:underline"
+          class="mb-1 text-xs font-medium pdf-control-muted hover:underline"
           @click="doc.selectPage(g.page.id)"
         >
           Seite {{ g.number }}
@@ -127,7 +129,7 @@ function apply(): void {
           <li
             v-for="s in g.items"
             :key="s.id"
-            class="flex items-start gap-2 rounded px-1 py-1 hover:bg-gray-50"
+            class="flex items-start gap-2 rounded px-1 py-1"
             data-testid="suggestion-item"
           >
             <input
@@ -144,14 +146,14 @@ function apply(): void {
               @click="doc.selectPage(s.pageId)"
             >
               <span class="block truncate font-medium">{{ s.text }}</span>
-              <span class="block text-xs text-gray-500">
+              <span class="block text-xs pdf-control-muted">
                 {{ CATEGORY_LABELS[s.category] }}
                 <template v-if="s.rects.length > 1"> · {{ s.rects.length }}×</template>
               </span>
             </button>
             <button
               type="button"
-              class="text-gray-400 hover:text-gray-700"
+              class="pdf-control-muted pdf-control-text-hover"
               :aria-label="`Vorschlag ${s.text} verwerfen`"
               @click="redaction.dismiss(s.id)"
             >
@@ -160,12 +162,12 @@ function apply(): void {
           </li>
         </ul>
       </section>
-      <p v-if="groups.length === 0 && !redaction.busy" class="p-2 text-xs text-gray-500">
+      <p v-if="groups.length === 0 && !redaction.busy" class="p-2 text-xs pdf-control-muted">
         Noch keine Vorschläge. Manuell schwärzen: Werkzeug „Schwärzen“ (R).
       </p>
     </div>
 
-    <div v-if="redaction.valid.length > 0" class="flex gap-2 border-t border-gray-200 p-3">
+    <div v-if="redaction.valid.length > 0" class="flex gap-2 border-t pdf-control-border p-3">
       <button type="button" class="pn-btn" @click="redaction.selectAll(!allSelected)">
         {{ allSelected ? 'Keine' : 'Alle' }}
       </button>
@@ -188,12 +190,6 @@ function apply(): void {
 @reference 'tailwindcss';
 
 .pn-btn {
-  @apply rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50;
-}
-.pn-primary {
-  @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700;
-}
-.pn-danger {
-  @apply border-gray-900 bg-gray-900 text-white hover:bg-black;
+  @apply rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50;
 }
 </style>

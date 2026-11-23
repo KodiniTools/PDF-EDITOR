@@ -3,6 +3,7 @@ import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import '@/assets/pdf-editor-layout.css'
 import '@/assets/pdf-editor-header.css'
+import '@/assets/pdf-editor-controls.css'
 
 import AppToolbar from '@/components/AppToolbar.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
@@ -298,7 +299,7 @@ onBeforeUnmount(() => {
     <div
       v-if="store.error"
       role="alert"
-      class="flex items-start justify-between gap-4 border-b border-red-200 bg-red-50 px-4 py-2 text-sm whitespace-pre-line text-red-700"
+      class="flex items-start justify-between gap-4 border-b pdf-control-error-border pdf-control-error-bg px-4 py-2 text-sm whitespace-pre-line pdf-control-error"
     >
       <span>{{ store.error }}</span>
       <button

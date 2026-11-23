@@ -154,7 +154,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="absolute z-20 w-max max-w-[22rem] rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-800 shadow-lg"
+    class="pdf-text-assist absolute z-20 w-max max-w-[22rem] rounded-lg border pdf-control-border pdf-control-surface p-2 text-xs pdf-control-text shadow-lg"
     :style="style"
     data-testid="text-assist"
     @pointerdown.stop
@@ -162,7 +162,7 @@ onBeforeUnmount(() => {
     @dblclick.stop
   >
     <div class="flex flex-wrap items-center gap-1">
-      <span class="mr-1 font-medium text-gray-500">KI:</span>
+      <span class="mr-1 font-medium pdf-control-muted">KI:</span>
       <button
         v-for="[mode, label] in MODES"
         :key="mode"
@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
             v-if="languageMenu"
             role="listbox"
             aria-label="Zielsprache"
-            class="absolute top-full left-0 z-30 mt-1 flex w-max flex-col rounded border border-gray-200 bg-white py-1 shadow-lg"
+            class="absolute top-full left-0 z-30 mt-1 flex w-max flex-col rounded border pdf-control-border pdf-control-surface py-1 shadow-lg"
           >
             <button
               v-for="[code, label] in LANGUAGES"
@@ -203,8 +203,8 @@ onBeforeUnmount(() => {
               type="button"
               role="option"
               :aria-selected="code === language"
-              class="px-3 py-1 text-left hover:bg-gray-100"
-              :class="code === language ? 'font-semibold text-blue-700' : ''"
+              class="px-3 py-1 text-left pdf-control-hover"
+              :class="code === language ? 'font-semibold pdf-control-info' : ''"
               :data-testid="`assist-language-${code}`"
               @click="chooseLanguage(code)"
             >
@@ -225,23 +225,23 @@ onBeforeUnmount(() => {
       </span>
     </div>
 
-    <p v-if="tooLong" class="mt-1 text-amber-700">
+    <p v-if="tooLong" class="mt-1 pdf-control-warning">
       Text zu lang (höchstens {{ MAX_REWRITE_LENGTH }} Zeichen).
     </p>
-    <div v-if="busy" class="mt-2 flex items-center justify-between gap-3 text-blue-700">
+    <div v-if="busy" class="mt-2 flex items-center justify-between gap-3 pdf-control-info">
       <span>Claude formuliert…</span>
       <button type="button" class="underline" @click="cancel">Abbrechen</button>
     </div>
-    <p v-if="error" role="alert" class="mt-2 text-red-700">{{ error }}</p>
+    <p v-if="error" role="alert" class="mt-2 pdf-control-error">{{ error }}</p>
 
-    <div v-if="result" class="mt-2 border-t border-gray-200 pt-2">
+    <div v-if="result" class="mt-2 border-t pdf-control-border pt-2">
       <p class="max-h-40 overflow-auto whitespace-pre-wrap" data-testid="assist-result">
         {{ result.text }}
       </p>
-      <p v-if="unsupported.length > 0" class="mt-1 text-amber-700">
+      <p v-if="unsupported.length > 0" class="mt-1 pdf-control-warning">
         Nicht in der PDF-Schrift enthalten, wird im Export zu „?“: {{ unsupported.join(' ') }}
       </p>
-      <p v-if="result.source !== annotation.text" class="mt-1 text-amber-700">
+      <p v-if="result.source !== annotation.text" class="mt-1 pdf-control-warning">
         Der Text wurde inzwischen geändert – Übernehmen ersetzt ihn trotzdem.
       </p>
       <div class="mt-2 flex justify-end gap-2">
@@ -266,9 +266,6 @@ onBeforeUnmount(() => {
 @reference 'tailwindcss';
 
 .ta-btn {
-  @apply rounded border border-gray-300 bg-white px-2 py-0.5 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50;
-}
-.ta-primary {
-  @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700;
+  @apply rounded border px-2 py-0.5 disabled:cursor-not-allowed disabled:opacity-50;
 }
 </style>

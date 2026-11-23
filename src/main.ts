@@ -16,3 +16,7 @@ app.mount('#app')
 void import('virtual:kodini-nav').catch((error: unknown) => {
   console.error('KodiniTools-Navigation konnte nicht initialisiert werden.', error)
 })
+
+void import('virtual:kodini-footer').catch((error: unknown) => {
+  console.error('KodiniTools-Footer konnte nicht initialisiert werden.', error)
+})

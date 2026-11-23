@@ -77,21 +77,21 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+    class="fixed inset-0 z-50 grid place-items-center pdf-control-scrim p-4"
     @click.self="emit('close')"
   >
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="cost-title"
-      class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-xl bg-white p-5 text-sm shadow-xl"
+      class="pdf-control-dialog w-full max-w-lg rounded-xl pdf-control-surface p-5 text-sm shadow-xl"
       data-testid="cost-dialog"
     >
       <div class="flex items-start justify-between gap-2">
         <h2 id="cost-title" class="text-base font-semibold">Kosten der Anthropic API</h2>
         <button
           type="button"
-          class="rounded-md border border-gray-300 px-2 py-1 hover:bg-gray-100 disabled:opacity-50"
+          class="rounded-md border pdf-control-border px-2 py-1 pdf-control-hover disabled:opacity-50"
           :disabled="costs.loading || costs.configured === false"
           data-testid="cost-refresh"
           @click="costs.load(true)"
@@ -100,11 +100,11 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <p v-if="costs.error" role="alert" class="mt-2 text-red-700">{{ costs.error }}</p>
+      <p v-if="costs.error" role="alert" class="mt-2 pdf-control-error">{{ costs.error }}</p>
 
       <div
         v-if="costs.configured === false"
-        class="mt-3 space-y-2 rounded-md bg-amber-50 p-3 text-amber-900"
+        class="mt-3 space-y-2 rounded-md pdf-control-warning-bg p-3 pdf-control-warning"
         data-testid="cost-setup"
       >
         <p class="font-medium">Das Backend kennt den Kostenrechner noch nicht.</p>
@@ -117,40 +117,40 @@ onBeforeUnmount(() => {
       <template v-else>
         <p
           v-if="costs.report?.source === 'local'"
-          class="mt-2 rounded-md bg-blue-50 p-2 text-xs text-blue-900"
+          class="mt-2 rounded-md pdf-control-info-bg p-2 text-xs pdf-control-info"
           data-testid="cost-status"
         >
           <strong>Schätzung:</strong> gezählt werden nur KI-Anfragen dieses PDF-Editors (Tokens ×
           Listenpreis), sofort aktuell. Andere Apps und Keys sowie Rabatte und Gutschriften sind
           nicht enthalten; maßgeblich ist die Rechnung in der Anthropic Console.
-          <span v-if="costs.report.notice" class="mt-1 block text-blue-700">
+          <span v-if="costs.report.notice" class="mt-1 block pdf-control-info">
             {{ costs.report.notice }}
           </span>
         </p>
-        <p v-else class="mt-1 text-xs text-gray-500" data-testid="cost-status">
+        <p v-else class="mt-1 text-xs pdf-control-muted" data-testid="cost-status">
           Kosten der ganzen Organisation laut Anthropic, 4–24 Stunden verzögert. Vollständig bis
           {{ fmtDateTime(costs.report?.refreshedAt) }}, geladen
           {{ fmtDateTime(costs.report?.fetchedAt) }}.
         </p>
 
         <div class="mt-3 grid grid-cols-3 gap-2">
-          <div class="rounded-md bg-gray-50 p-2">
-            <div class="text-xs text-gray-500">Dieser Monat</div>
+          <div class="rounded-md pdf-control-raised p-2">
+            <div class="text-xs pdf-control-muted">Dieser Monat</div>
             <div class="text-lg font-semibold tabular-nums" data-testid="cost-month">
               {{ formatUsd(costs.monthUsd) }}
             </div>
           </div>
-          <div class="rounded-md bg-gray-50 p-2">
-            <div class="text-xs text-gray-500">
+          <div class="rounded-md pdf-control-raised p-2">
+            <div class="text-xs pdf-control-muted">
               Heute (UTC{{ costs.report?.source === 'local' ? '' : ', unvollst.' }})
             </div>
             <div class="text-lg font-semibold tabular-nums">{{ formatUsd(costs.todayUsd) }}</div>
           </div>
           <div
-            class="rounded-md bg-gray-50 p-2"
+            class="rounded-md pdf-control-raised p-2"
             title="Sofort, aus den Tokens dieses Editors geschätzt"
           >
-            <div class="text-xs text-gray-500">Seit Seitenaufruf ≈</div>
+            <div class="text-xs pdf-control-muted">Seit Seitenaufruf ≈</div>
             <div class="text-lg font-semibold tabular-nums">
               {{ formatUsd(models.sessionCost) }}
             </div>
@@ -158,11 +158,11 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-if="costs.settings.budget" class="mt-2">
-          <div class="flex justify-between text-xs text-gray-600">
+          <div class="flex justify-between text-xs pdf-control-muted">
             <span>Monatsbudget {{ formatUsd(costs.settings.budget) }}</span>
             <span>{{ Math.round((costs.budgetShare ?? 0) * 100) }} %</span>
           </div>
-          <div class="mt-1 h-2 overflow-hidden rounded bg-gray-200">
+          <div class="mt-1 h-2 overflow-hidden rounded pdf-control-track">
             <div
               class="h-full"
               :class="
@@ -177,59 +177,59 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <section class="mt-4 rounded-md border border-gray-200 p-3" data-testid="cost-account">
+        <section class="mt-4 rounded-md border pdf-control-border p-3" data-testid="cost-account">
           <div class="flex items-baseline justify-between">
             <span class="font-medium">
               {{ account.balance >= 0 ? 'Guthaben (geschätzt)' : 'Offener Betrag' }}
             </span>
             <span
               class="text-lg font-semibold tabular-nums"
-              :class="account.balance >= 0 ? 'text-green-700' : 'text-red-700'"
+              :class="account.balance >= 0 ? 'pdf-control-success' : 'pdf-control-error'"
               data-testid="cost-balance"
             >
               {{ formatUsd(Math.abs(account.balance)) }}
             </span>
           </div>
-          <p class="mt-1 text-xs text-gray-600">
+          <p class="mt-1 text-xs pdf-control-muted">
             {{ costs.report?.source === 'local' ? 'Geschätzte Kosten' : 'Kosten' }} seit
             {{ fmtDate(costs.settings.since) }}: {{ formatUsd(account.costs) }} ·
             Zahlungen/Aufladungen: {{ formatUsd(account.paid) }}
           </p>
-          <p v-if="costs.truncated" class="mt-1 text-xs text-amber-700">
+          <p v-if="costs.truncated" class="mt-1 text-xs pdf-control-warning">
             Kosten sind höchstens 364 Tage (ab 01.01.2026) verfügbar; ältere fehlen.
           </p>
           <p
             v-if="costs.report?.source === 'local' && account.balance > 0"
-            class="mt-1 text-xs text-gray-500"
+            class="mt-1 text-xs pdf-control-muted"
           >
             Guthaben ist nur eine Schätzung: Verbrauch anderer Apps mit demselben Konto fehlt.
           </p>
 
           <div class="mt-3 flex flex-wrap items-end gap-2">
             <label class="flex flex-col gap-1">
-              <span class="text-xs text-gray-600">Bezahlt / aufgeladen (USD)</span>
+              <span class="text-xs pdf-control-muted">Bezahlt / aufgeladen (USD)</span>
               <input
                 v-model.number="payAmount"
                 type="number"
                 min="0"
                 step="0.01"
-                class="w-32 rounded-md border border-gray-300 px-2 py-1"
+                class="w-32 rounded-md border pdf-control-border px-2 py-1"
                 data-testid="cost-pay-amount"
                 @keydown.enter="pay"
               />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-xs text-gray-600">Datum</span>
+              <span class="text-xs pdf-control-muted">Datum</span>
               <input
                 v-model="payDate"
                 type="date"
                 :max="costs.today"
-                class="rounded-md border border-gray-300 px-2 py-1"
+                class="rounded-md border pdf-control-border px-2 py-1"
               />
             </label>
             <button
               type="button"
-              class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
+              class="rounded-md pdf-control-primary px-3 py-1.5 disabled:opacity-50"
               :disabled="!canPay"
               data-testid="cost-pay"
               @click="pay"
@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
             <button
               v-if="open > 0"
               type="button"
-              class="text-xs text-blue-700 underline"
+              class="text-xs pdf-control-info underline"
               data-testid="cost-pay-open"
               @click="prefillOpen"
             >
@@ -255,14 +255,14 @@ onBeforeUnmount(() => {
             <li
               v-for="p in [...costs.settings.payments].reverse()"
               :key="p.id"
-              class="flex items-center justify-between rounded bg-gray-50 px-2 py-1"
+              class="flex items-center justify-between rounded pdf-control-raised px-2 py-1"
             >
               <span>{{ fmtDate(p.date) }}</span>
               <span class="flex items-center gap-2">
                 <span class="tabular-nums">{{ formatUsd(p.usd) }}</span>
                 <button
                   type="button"
-                  class="text-gray-400 hover:text-red-700"
+                  class="pdf-control-muted pdf-control-error-text-hover"
                   :aria-label="`Zahlung vom ${fmtDate(p.date)} entfernen`"
                   @click="costs.removePayment(p.id)"
                 >
@@ -276,7 +276,7 @@ onBeforeUnmount(() => {
         <section v-if="costs.monthByModel.length" class="mt-4">
           <h3 class="mb-1 font-medium">Dieser Monat nach Modell</h3>
           <table class="w-full" data-testid="cost-models">
-            <tr v-for="r in costs.monthByModel" :key="r.model" class="border-t border-gray-100">
+            <tr v-for="r in costs.monthByModel" :key="r.model" class="border-t pdf-control-border">
               <td class="py-1">{{ r.model === 'other' ? 'Sonstiges' : modelLabel(r.model) }}</td>
               <td class="py-1 text-right tabular-nums">{{ formatUsd(r.usd) }}</td>
             </tr>
@@ -284,34 +284,34 @@ onBeforeUnmount(() => {
         </section>
 
         <details class="mt-4">
-          <summary class="cursor-pointer text-gray-700">Einstellungen</summary>
+          <summary class="cursor-pointer pdf-control-muted">Einstellungen</summary>
           <div class="mt-2 grid grid-cols-2 gap-3">
             <label class="flex flex-col gap-1">
-              <span class="text-xs text-gray-600">Konto beginnt am</span>
+              <span class="text-xs pdf-control-muted">Konto beginnt am</span>
               <input
                 type="date"
                 :value="costs.settings.since"
                 min="2026-01-01"
                 :max="costs.today"
-                class="rounded-md border border-gray-300 px-2 py-1"
+                class="rounded-md border pdf-control-border px-2 py-1"
                 data-testid="cost-since"
                 @change="onSince"
               />
             </label>
             <label class="flex flex-col gap-1">
-              <span class="text-xs text-gray-600">Monatsbudget (USD, leer = keins)</span>
+              <span class="text-xs pdf-control-muted">Monatsbudget (USD, leer = keins)</span>
               <input
                 v-model.number="budgetInput"
                 type="number"
                 min="0"
                 step="1"
-                class="rounded-md border border-gray-300 px-2 py-1"
+                class="rounded-md border pdf-control-border px-2 py-1"
                 data-testid="cost-budget"
                 @change="saveBudget"
               />
             </label>
           </div>
-          <p class="mt-2 text-xs text-gray-500">
+          <p class="mt-2 text-xs pdf-control-muted">
             Zahlungen, Budget und Kontobeginn werden nur in diesem Browser gespeichert; Anthropic
             stellt Zahlungen und Guthaben nicht über die API bereit.
             <template v-if="costs.report?.source === 'local'">
@@ -328,7 +328,7 @@ onBeforeUnmount(() => {
       <div class="mt-5 flex justify-end">
         <button
           type="button"
-          class="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-100"
+          class="rounded-md border pdf-control-border px-3 py-1.5"
           data-testid="cost-close"
           @click="emit('close')"
         >

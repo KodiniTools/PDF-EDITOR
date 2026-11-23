@@ -79,29 +79,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" @click.self="close">
+  <div class="fixed inset-0 z-50 grid place-items-center pdf-control-scrim p-4" @click.self="close">
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="new-doc-title"
-      class="w-full max-w-lg rounded-xl bg-white p-5 text-sm shadow-xl"
+      class="w-full max-w-lg rounded-xl pdf-control-dialog pdf-control-surface p-5 text-sm shadow-xl"
       data-testid="new-document-dialog"
     >
       <h2 id="new-doc-title" class="text-base font-semibold">Neues Dokument</h2>
 
       <div class="mt-4 grid grid-cols-2 gap-3">
         <label class="flex flex-col gap-1">
-          <span class="text-gray-600">Format</span>
+          <span class="pdf-control-muted">Format</span>
           <select
             v-model="format"
-            class="rounded-md border border-gray-300 px-2 py-1.5"
+            class="rounded-md border pdf-control-border px-2 py-1.5"
             data-testid="new-doc-format"
           >
             <option v-for="f in PAGE_FORMATS" :key="f" :value="f">{{ FORMAT_LABELS[f] }}</option>
           </select>
         </label>
         <fieldset class="flex flex-col gap-1">
-          <legend class="mb-1 text-gray-600">Ausrichtung</legend>
+          <legend class="mb-1 pdf-control-muted">Ausrichtung</legend>
           <div class="flex gap-3 py-1.5">
             <label class="flex items-center gap-1">
               <input v-model="orientation" type="radio" value="portrait" /> Hoch
@@ -120,23 +120,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </div>
 
       <label class="mt-4 flex flex-col gap-1">
-        <span class="text-gray-600"> Inhalt mit KI (optional) – leer lassen für leere Seiten </span>
+        <span class="pdf-control-muted">
+          Inhalt mit KI (optional) – leer lassen für leere Seiten
+        </span>
         <textarea
           v-model="prompt"
           rows="4"
           :maxlength="MAX_PROMPT_LENGTH + 1"
-          class="rounded-md border border-gray-300 px-2 py-1.5"
+          class="rounded-md border pdf-control-border px-2 py-1.5"
           placeholder="z. B. Leere Rechnungsvorlage mit Positionstabelle"
           data-testid="new-doc-prompt"
         ></textarea>
       </label>
-      <p v-if="tooLong" class="mt-1 text-red-600">Höchstens {{ MAX_PROMPT_LENGTH }} Zeichen.</p>
+      <p v-if="tooLong" class="mt-1 pdf-control-error">
+        Höchstens {{ MAX_PROMPT_LENGTH }} Zeichen.
+      </p>
       <div v-if="!prompt" class="mt-2 flex flex-wrap gap-1">
         <button
           v-for="ex in EXAMPLES"
           :key="ex"
           type="button"
-          class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-200"
+          class="rounded-full pdf-control-raised px-2 py-0.5 text-xs pdf-control-muted pdf-control-hover"
           :title="ex"
           @click="prompt = ex"
         >
@@ -146,10 +150,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
       <div class="mt-4 grid grid-cols-2 gap-3">
         <label v-if="useAi" class="flex flex-col gap-1">
-          <span class="text-gray-600">Sprache</span>
+          <span class="pdf-control-muted">Sprache</span>
           <select
             v-model="language"
-            class="rounded-md border border-gray-300 px-2 py-1.5"
+            class="rounded-md border pdf-control-border px-2 py-1.5"
             data-testid="new-doc-language"
           >
             <option v-for="(label, id) in LANGUAGE_LABELS" :key="id" :value="id">
@@ -158,46 +162,46 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </select>
         </label>
         <label v-else class="flex flex-col gap-1">
-          <span class="text-gray-600">Seiten</span>
+          <span class="pdf-control-muted">Seiten</span>
           <input
             v-model.number="pages"
             type="number"
             min="1"
             :max="MAX_EMPTY_PAGES"
-            class="rounded-md border border-gray-300 px-2 py-1.5"
+            class="rounded-md border pdf-control-border px-2 py-1.5"
             data-testid="new-doc-pages"
           />
         </label>
         <div v-if="useAi" class="flex flex-col gap-1">
-          <span class="text-gray-600">Modell (Abrechnung)</span>
+          <span class="pdf-control-muted">Modell (Abrechnung)</span>
           <span class="py-1.5 font-medium" data-testid="new-doc-model">
             {{ modelLabel(models.selected) }}
           </span>
         </div>
       </div>
 
-      <p v-if="doc.hasDocument" class="mt-3 text-gray-500">
+      <p v-if="doc.hasDocument" class="mt-3 pdf-control-muted">
         Die neuen Seiten werden an das geöffnete Dokument angehängt.
       </p>
-      <p v-if="useAi" class="mt-1 text-gray-500">
+      <p v-if="useAi" class="mt-1 pdf-control-muted">
         Die Beschreibung wird an Claude gesendet; der Text wird mit Standardschrift gesetzt und
         lässt sich danach wie gewohnt bearbeiten.
       </p>
-      <p v-if="gen.error" role="alert" class="mt-3 whitespace-pre-line text-red-600">
+      <p v-if="gen.error" role="alert" class="mt-3 whitespace-pre-line pdf-control-error">
         {{ gen.error }}
       </p>
 
       <div class="mt-5 flex justify-end gap-2">
         <button
           type="button"
-          class="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-100"
+          class="rounded-md border pdf-control-border px-3 py-1.5 pdf-control-hover"
           @click="close"
         >
           {{ gen.busy ? 'Abbrechen' : 'Schließen' }}
         </button>
         <button
           type="button"
-          class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
+          class="rounded-md pdf-control-primary px-3 py-1.5 disabled:opacity-50"
           :disabled="!canCreate"
           data-testid="new-doc-create"
           title="Erstellen (Strg+Enter)"

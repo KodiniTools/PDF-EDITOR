@@ -63,8 +63,8 @@ watch(
     aria-label="Fragen zum Dokument"
     data-testid="ask-panel"
   >
-    <div class="border-b border-gray-200 p-3">
-      <p class="text-xs text-gray-500">
+    <div class="border-b pdf-control-border p-3">
+      <p class="text-xs pdf-control-muted">
         Der Text aller Seiten (bei Scans einmalig das Seitenbild) wird an Claude (Anthropic)
         gesendet. Antworten können Fehler enthalten – wichtige Stellen im Dokument prüfen.
       </p>
@@ -83,13 +83,13 @@ watch(
     </div>
 
     <div ref="list" class="min-h-0 flex-1 space-y-3 overflow-auto p-3" aria-live="polite">
-      <p v-if="ask.entries.length === 0 && !ask.pending" class="text-xs text-gray-500">
+      <p v-if="ask.entries.length === 0 && !ask.pending" class="text-xs pdf-control-muted">
         Stelle eine Frage zum Dokument, z. B. „Bis wann muss ich zahlen?“
       </p>
       <div
         v-for="m in ask.entries"
         :key="m.id"
-        :class="m.role === 'user' ? 'pn-q' : 'pn-a'"
+        :class="m.role === 'user' ? 'pn-q pdf-control-info-bg' : 'pn-a pdf-control-raised'"
         :data-testid="m.role === 'user' ? 'ask-question' : 'ask-answer'"
       >
         <template v-if="m.role === 'user'">{{ m.content }}</template>
@@ -98,7 +98,7 @@ watch(
             <button
               v-if="part.kind === 'page'"
               type="button"
-              class="text-blue-700 underline hover:text-blue-900"
+              class="pdf-control-info underline pdf-control-info-hover"
               :title="`Zu Seite ${part.page}`"
               @click="goToPage(part.page)"
             >
@@ -109,8 +109,8 @@ watch(
         </template>
       </div>
       <template v-if="ask.pending">
-        <div class="pn-q">{{ ask.pending }}</div>
-        <div class="flex items-center justify-between text-blue-700">
+        <div class="pn-q pdf-control-info-bg">{{ ask.pending }}</div>
+        <div class="flex items-center justify-between pdf-control-info">
           <span>
             <template v-if="ask.reading && ask.reading.total > 1">
               Lese Seite {{ ask.reading.done + 1 }} von {{ ask.reading.total }}…
@@ -120,27 +120,27 @@ watch(
           <button type="button" class="underline" @click="ask.cancel()">Abbrechen</button>
         </div>
       </template>
-      <p v-if="ask.error" role="alert" class="text-red-700">{{ ask.error }}</p>
-      <p v-if="ask.ocrPages > 0" class="text-xs text-gray-600">
+      <p v-if="ask.error" role="alert" class="pdf-control-error">{{ ask.error }}</p>
+      <p v-if="ask.ocrPages > 0" class="text-xs pdf-control-muted">
         {{ ask.ocrPages }} gescannte Seite(n) per Bilderkennung gelesen.
       </p>
-      <p v-if="ask.ocrError" class="text-xs text-amber-700">
+      <p v-if="ask.ocrError" class="text-xs pdf-control-warning">
         Bilderkennung teilweise fehlgeschlagen: {{ ask.ocrError }}
       </p>
-      <p v-if="ask.pagesWithoutText > 0" class="text-xs text-amber-700">
+      <p v-if="ask.pagesWithoutText > 0" class="text-xs pdf-control-warning">
         {{ ask.pagesWithoutText }} Seite(n) ohne erkennbaren Text wurden nicht berücksichtigt.
       </p>
-      <p v-if="ask.truncated" class="text-xs text-amber-700">
+      <p v-if="ask.truncated" class="text-xs pdf-control-warning">
         Das Dokument ist sehr lang; nur der Anfang wurde berücksichtigt.
       </p>
     </div>
 
-    <form class="border-t border-gray-200 p-3" @submit.prevent="send(input)">
+    <form class="border-t pdf-control-border p-3" @submit.prevent="send(input)">
       <textarea
         v-model="input"
         rows="3"
         :maxlength="MAX_QUESTION_CHARS"
-        class="w-full resize-none rounded-md border border-gray-300 p-2 text-sm focus:border-blue-500 focus:outline-none"
+        class="w-full resize-none rounded-md border pdf-control-border p-2 text-sm pdf-control-focus-border focus:outline-none"
         placeholder="Frage stellen… (Enter senden, Umschalt+Enter neue Zeile)"
         aria-label="Frage zum Dokument"
         data-testid="ask-input"
@@ -172,18 +172,15 @@ watch(
 @reference 'tailwindcss';
 
 .pn-btn {
-  @apply rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50;
-}
-.pn-primary {
-  @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700;
+  @apply rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50;
 }
 .pn-chip {
-  @apply rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply rounded-full border px-2 py-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-50;
 }
 .pn-q {
-  @apply ml-6 rounded-lg bg-blue-50 px-3 py-2 whitespace-pre-wrap;
+  @apply ml-6 rounded-lg px-3 py-2 whitespace-pre-wrap;
 }
 .pn-a {
-  @apply mr-2 rounded-lg bg-gray-50 px-3 py-2 break-words whitespace-pre-wrap;
+  @apply mr-2 rounded-lg px-3 py-2 break-words whitespace-pre-wrap;
 }
 </style>
