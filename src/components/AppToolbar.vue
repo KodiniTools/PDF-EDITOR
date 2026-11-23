@@ -133,37 +133,44 @@ const selectedFont = computed({
 const MM_PER_PT = 25.4 / 72
 const toMm = (pt: number): number => Math.round(pt * MM_PER_PT * 10) / 10
 
+/** Ausgewähltes Objekt mit einstellbarer Position: Text oder Bild. */
+const selectedPositioned = computed(() => {
+  const a = store.selectedAnnotation
+  return a?.kind === 'text' || a?.kind === 'image' ? a : null
+})
+
 /**
- * Setzt die Position des ausgewählten Textes (in mm ab linker oberer Seitenecke).
- * Der Text bleibt auf der Seite; rechts wird er vom Seiteneditor schmaler umbrochen.
+ * Setzt die Position der Auswahl (Text oder Bild, in mm ab linker oberer Seitenecke).
+ * Das Objekt bleibt auf der Seite; Text wird rechts vom Seiteneditor schmaler umbrochen.
  */
-function moveSelectedText(axis: 'x' | 'y', mm: number | string): void {
+function moveSelected(axis: 'x' | 'y', mm: number | string): void {
   const page = store.selectedPage
-  const a = selectedText.value
+  const a = selectedPositioned.value
   const value = typeof mm === 'number' ? mm : Number.NaN
   if (!page || !a || !Number.isFinite(value)) return
   const size = displaySize(page.box, normalizeRotation(page.baseRotation + page.rotation))
-  const pt = value / MM_PER_PT
-  let next: number
-  if (axis === 'x') {
+  let extent: number
+  if (a.kind === 'image') {
+    extent = axis === 'x' ? a.width : a.height
+  } else if (axis === 'x') {
     const unwrapped = unwrapSoft(a.text, a.softBreaks ?? [])
-    const keep =
+    extent =
       a.replacesKey === undefined ? minTextWidth(unwrapped, a) : longestLineWidth(unwrapped, a)
-    next = Math.min(Math.max(0, pt), Math.max(0, size.width - keep))
   } else {
-    const height = a.text.split('\n').length * a.fontSize * TEXT_LINE_HEIGHT
-    next = Math.min(Math.max(0, pt), Math.max(0, size.height - height))
+    extent = a.text.split('\n').length * a.fontSize * TEXT_LINE_HEIGHT
   }
+  const limit = (axis === 'x' ? size.width : size.height) - extent
+  const next = Math.min(Math.max(0, value / MM_PER_PT), Math.max(0, limit))
   store.updateAnnotation(page.id, a.id, { [axis]: next }, `style:${a.id}`)
 }
 
 const selectedX = computed({
-  get: () => toMm(selectedText.value?.x ?? 0),
-  set: (mm: number | string) => moveSelectedText('x', mm),
+  get: () => toMm(selectedPositioned.value?.x ?? 0),
+  set: (mm: number | string) => moveSelected('x', mm),
 })
 const selectedY = computed({
-  get: () => toMm(selectedText.value?.y ?? 0),
-  set: (mm: number | string) => moveSelectedText('y', mm),
+  get: () => toMm(selectedPositioned.value?.y ?? 0),
+  set: (mm: number | string) => moveSelected('y', mm),
 })
 
 /** Fett/kursiv der Auswahl umschalten bzw. Ausrichtung setzen (ein Undo-Schritt je Text). */
@@ -263,6 +270,12 @@ function onFileChange(e: Event): void {
   if (files.length > 0) emit('openFiles', files)
 }
 
+/** Kontextzeile ohne Inhalt: weder Auswahl noch Werkzeug mit eigenen Einstellungen. */
+const TOOLS_WITH_OPTIONS: readonly Tool[] = ['text', 'highlight', 'cover', 'redact', 'signature']
+const contextEmpty = computed(
+  () => !store.selectedAnnotation && !TOOLS_WITH_OPTIONS.includes(store.tool),
+)
+
 function chooseTool(id: Tool): void {
   store.setTool(id)
   if (id === 'signature' && !store.signatureDataUrl) emit('editSignature')
@@ -325,133 +338,6 @@ function chooseTool(id: Tool): void {
     </button>
     <NewDocumentDialog v-if="showNewDocument" @close="showNewDocument = false" />
 
-    <!-- Format des ausgewählten Textes, in der oberen Zeile.
-         data-text-style-controls: Fokus hier beendet die Textbearbeitung nicht (PageEditor). -->
-    <div
-      v-if="store.hasDocument && selectedText"
-      class="flex flex-wrap items-center gap-2 text-sm"
-      role="group"
-      :aria-label="t('toolbar.selectedText')"
-      data-text-style-controls
-      data-testid="text-format"
-    >
-      <label class="flex items-center gap-1" :title="t('toolbar.selectedText')">
-        {{ t('toolbar.selectionSize') }}
-        <input
-          v-model.lazy.number="selectedFontSize"
-          type="number"
-          min="4"
-          max="200"
-          step="0.5"
-          class="w-16 rounded border pdf-control-border px-1 py-0.5"
-          data-testid="selected-font-size"
-        />
-      </label>
-      <select
-        v-model="selectedFont"
-        class="rounded border pdf-control-border px-1 py-0.5"
-        :title="t('toolbar.selectionFont')"
-        :aria-label="t('toolbar.selectionFont')"
-        data-testid="selected-font"
-      >
-        <option v-for="f in fontOptions" :key="f.value" :value="f.value">{{ f.label }}</option>
-      </select>
-      <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.textStyle')">
-        <button
-          type="button"
-          class="pdf-tool-button w-9 font-bold"
-          :title="t('toolbar.bold')"
-          :aria-label="t('toolbar.bold')"
-          :aria-pressed="selectedText.bold === true"
-          data-testid="text-bold"
-          @click="patchSelectedText({ bold: !selectedText.bold })"
-        >
-          {{ t('toolbar.boldLetter') }}
-        </button>
-        <button
-          type="button"
-          class="pdf-tool-button w-9 font-serif italic"
-          :title="t('toolbar.italic')"
-          :aria-label="t('toolbar.italic')"
-          :aria-pressed="selectedText.italic === true"
-          data-testid="text-italic"
-          @click="patchSelectedText({ italic: !selectedText.italic })"
-        >
-          {{ t('toolbar.italicLetter') }}
-        </button>
-      </div>
-      <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.align')">
-        <button
-          v-for="option in alignOptions"
-          :key="option.value"
-          type="button"
-          class="pdf-tool-button grid w-9 place-items-center"
-          :title="option.label"
-          :aria-label="option.label"
-          :aria-pressed="(selectedText.align ?? 'left') === option.value"
-          :data-testid="`text-align-${option.value}`"
-          @click="patchSelectedText({ align: option.value })"
-        >
-          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">
-            <rect x="1" y="2" width="14" height="1.6" />
-            <rect
-              :x="option.value === 'left' ? 1 : option.value === 'center' ? 4 : 7"
-              y="5.5"
-              width="8"
-              height="1.6"
-            />
-            <rect x="1" y="9" width="14" height="1.6" />
-            <rect
-              :x="option.value === 'left' ? 1 : option.value === 'center' ? 4 : 7"
-              y="12.5"
-              width="8"
-              height="1.6"
-            />
-          </svg>
-        </button>
-      </div>
-      <input
-        v-model="selectedColor"
-        type="color"
-        class="h-7 w-8"
-        :title="t('toolbar.selectionTextColor')"
-        :aria-label="t('toolbar.selectionTextColor')"
-        data-testid="selected-text-color"
-      />
-      <div
-        class="flex items-center gap-2"
-        role="group"
-        :aria-label="t('toolbar.position')"
-        :title="t('toolbar.positionHint')"
-      >
-        <label class="flex items-center gap-1">
-          X
-          <input
-            v-model.number="selectedX"
-            type="number"
-            min="0"
-            step="1"
-            class="w-16 rounded border pdf-control-border px-1 py-0.5"
-            :aria-label="t('toolbar.positionX')"
-            data-testid="selected-text-x"
-          />
-        </label>
-        <label class="flex items-center gap-1">
-          Y
-          <input
-            v-model.number="selectedY"
-            type="number"
-            min="0"
-            step="1"
-            class="w-16 rounded border pdf-control-border px-1 py-0.5"
-            :aria-label="t('toolbar.positionY')"
-            data-testid="selected-text-y"
-          />
-        </label>
-        <span class="pdf-control-muted">mm</span>
-      </div>
-    </div>
-
     <div v-if="store.hasDocument" class="flex flex-wrap items-center gap-2">
       <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.tools')">
         <button
@@ -485,6 +371,233 @@ function chooseTool(id: Tool): void {
         data-testid="image-input"
         @change="onImageChange"
       />
+      <div class="flex items-center gap-1 text-sm" role="group" :aria-label="t('toolbar.history')">
+        <button
+          type="button"
+          class="tb-btn"
+          :title="t('toolbar.undoHint')"
+          :aria-label="t('toolbar.undo')"
+          :disabled="!store.canUndo || store.busy"
+          data-testid="undo"
+          @click="store.undo()"
+        >
+          ↶
+        </button>
+        <button
+          type="button"
+          class="tb-btn"
+          :title="t('toolbar.redoHint')"
+          :aria-label="t('toolbar.redo')"
+          :disabled="!store.canRedo || store.busy"
+          data-testid="redo"
+          @click="store.redo()"
+        >
+          ↷
+        </button>
+      </div>
+
+      <div class="flex items-center gap-1 text-sm">
+        <button
+          type="button"
+          class="tb-btn"
+          :title="t('toolbar.zoomOutHint')"
+          @click="store.setZoom(store.zoom - 0.25)"
+        >
+          −
+        </button>
+        <span class="w-12 text-center tabular-nums">{{ Math.round(store.zoom * 100) }}%</span>
+        <button
+          type="button"
+          class="tb-btn"
+          :title="t('toolbar.zoomInHint')"
+          @click="store.setZoom(store.zoom + 0.25)"
+        >
+          +
+        </button>
+      </div>
+    </div>
+
+    <div class="ml-auto flex flex-wrap gap-2">
+      <button
+        type="button"
+        class="tb-btn"
+        :title="t('toolbar.shortcutsHint')"
+        :aria-label="t('toolbar.shortcuts')"
+        data-testid="shortcut-help-button"
+        @click="emit('help')"
+      >
+        ⌨
+      </button>
+      <button
+        v-if="store.hasDocument"
+        type="button"
+        class="tb-btn"
+        :disabled="store.busy"
+        @click="store.reset()"
+      >
+        {{ t('common.close') }}
+      </button>
+      <button
+        v-if="store.hasDocument"
+        type="button"
+        class="tb-btn"
+        :title="t('toolbar.printHint')"
+        :disabled="store.busy"
+        data-testid="print"
+        @click="emit('print')"
+      >
+        {{ t('toolbar.print') }}
+      </button>
+      <button
+        v-if="store.hasDocument"
+        type="button"
+        class="tb-btn tb-primary"
+        :title="t('toolbar.exportHint')"
+        :disabled="store.busy"
+        @click="emit('export')"
+      >
+        {{ store.busy ? t('toolbar.wait') : t('toolbar.export') }}
+      </button>
+    </div>
+    <!-- Kontextzeile: Einstellungen zur Auswahl bzw. zum Werkzeug. Feste Höhe und immer
+         vorhanden, damit der Editor beim Ein- und Ausblenden nicht springt. -->
+    <div
+      v-if="store.hasDocument"
+      class="tb-context flex h-11 w-full items-center gap-2 overflow-x-auto overflow-y-hidden"
+      data-testid="context-bar"
+    >
+      <!-- Format des ausgewählten Textes.
+           data-text-style-controls: Fokus hier beendet die Textbearbeitung nicht (PageEditor). -->
+      <div
+        v-if="selectedText"
+        class="flex items-center gap-2 text-sm"
+        role="group"
+        :aria-label="t('toolbar.selectedText')"
+        data-text-style-controls
+        data-testid="text-format"
+      >
+        <label class="flex items-center gap-1" :title="t('toolbar.selectedText')">
+          {{ t('toolbar.selectionSize') }}
+          <input
+            v-model.lazy.number="selectedFontSize"
+            type="number"
+            min="4"
+            max="200"
+            step="0.5"
+            class="w-16 rounded border pdf-control-border px-1 py-0.5"
+            data-testid="selected-font-size"
+          />
+        </label>
+        <select
+          v-model="selectedFont"
+          class="rounded border pdf-control-border px-1 py-0.5"
+          :title="t('toolbar.selectionFont')"
+          :aria-label="t('toolbar.selectionFont')"
+          data-testid="selected-font"
+        >
+          <option v-for="f in fontOptions" :key="f.value" :value="f.value">{{ f.label }}</option>
+        </select>
+        <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.textStyle')">
+          <button
+            type="button"
+            class="pdf-tool-button w-9 font-bold"
+            :title="t('toolbar.bold')"
+            :aria-label="t('toolbar.bold')"
+            :aria-pressed="selectedText.bold === true"
+            data-testid="text-bold"
+            @click="patchSelectedText({ bold: !selectedText.bold })"
+          >
+            {{ t('toolbar.boldLetter') }}
+          </button>
+          <button
+            type="button"
+            class="pdf-tool-button w-9 font-serif italic"
+            :title="t('toolbar.italic')"
+            :aria-label="t('toolbar.italic')"
+            :aria-pressed="selectedText.italic === true"
+            data-testid="text-italic"
+            @click="patchSelectedText({ italic: !selectedText.italic })"
+          >
+            {{ t('toolbar.italicLetter') }}
+          </button>
+        </div>
+        <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.align')">
+          <button
+            v-for="option in alignOptions"
+            :key="option.value"
+            type="button"
+            class="pdf-tool-button grid w-9 place-items-center"
+            :title="option.label"
+            :aria-label="option.label"
+            :aria-pressed="(selectedText.align ?? 'left') === option.value"
+            :data-testid="`text-align-${option.value}`"
+            @click="patchSelectedText({ align: option.value })"
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">
+              <rect x="1" y="2" width="14" height="1.6" />
+              <rect
+                :x="option.value === 'left' ? 1 : option.value === 'center' ? 4 : 7"
+                y="5.5"
+                width="8"
+                height="1.6"
+              />
+              <rect x="1" y="9" width="14" height="1.6" />
+              <rect
+                :x="option.value === 'left' ? 1 : option.value === 'center' ? 4 : 7"
+                y="12.5"
+                width="8"
+                height="1.6"
+              />
+            </svg>
+          </button>
+        </div>
+        <input
+          v-model="selectedColor"
+          type="color"
+          class="h-7 w-8"
+          :title="t('toolbar.selectionTextColor')"
+          :aria-label="t('toolbar.selectionTextColor')"
+          data-testid="selected-text-color"
+        />
+      </div>
+
+      <!-- Position (X/Y) der Auswahl: erscheint nur, solange ein Text oder Bild ausgewählt ist. -->
+      <div
+        v-if="selectedPositioned"
+        class="flex items-center gap-2 text-sm"
+        role="group"
+        :aria-label="t('toolbar.position')"
+        :title="t('toolbar.positionHint')"
+        data-text-style-controls
+        data-testid="position-controls"
+      >
+        <label class="flex items-center gap-1">
+          X
+          <input
+            v-model.number="selectedX"
+            type="number"
+            min="0"
+            step="1"
+            class="w-16 rounded border pdf-control-border px-1 py-0.5"
+            :aria-label="t('toolbar.positionX')"
+            data-testid="position-x"
+          />
+        </label>
+        <label class="flex items-center gap-1">
+          Y
+          <input
+            v-model.number="selectedY"
+            type="number"
+            min="0"
+            step="1"
+            class="w-16 rounded border pdf-control-border px-1 py-0.5"
+            :aria-label="t('toolbar.positionY')"
+            data-testid="position-y"
+          />
+        </label>
+        <span class="pdf-control-muted">mm</span>
+      </div>
+
       <button
         v-if="store.selectedAnnotation"
         type="button"
@@ -579,93 +692,9 @@ function chooseTool(id: Tool): void {
         {{ t('toolbar.signatureNew') }}
       </button>
 
-      <div class="flex items-center gap-1 text-sm" role="group" :aria-label="t('toolbar.history')">
-        <button
-          type="button"
-          class="tb-btn"
-          :title="t('toolbar.undoHint')"
-          :aria-label="t('toolbar.undo')"
-          :disabled="!store.canUndo || store.busy"
-          data-testid="undo"
-          @click="store.undo()"
-        >
-          ↶
-        </button>
-        <button
-          type="button"
-          class="tb-btn"
-          :title="t('toolbar.redoHint')"
-          :aria-label="t('toolbar.redo')"
-          :disabled="!store.canRedo || store.busy"
-          data-testid="redo"
-          @click="store.redo()"
-        >
-          ↷
-        </button>
-      </div>
-
-      <div class="flex items-center gap-1 text-sm">
-        <button
-          type="button"
-          class="tb-btn"
-          :title="t('toolbar.zoomOutHint')"
-          @click="store.setZoom(store.zoom - 0.25)"
-        >
-          −
-        </button>
-        <span class="w-12 text-center tabular-nums">{{ Math.round(store.zoom * 100) }}%</span>
-        <button
-          type="button"
-          class="tb-btn"
-          :title="t('toolbar.zoomInHint')"
-          @click="store.setZoom(store.zoom + 0.25)"
-        >
-          +
-        </button>
-      </div>
-    </div>
-
-    <div class="ml-auto flex flex-wrap gap-2">
-      <button
-        type="button"
-        class="tb-btn"
-        :title="t('toolbar.shortcutsHint')"
-        :aria-label="t('toolbar.shortcuts')"
-        data-testid="shortcut-help-button"
-        @click="emit('help')"
-      >
-        ⌨
-      </button>
-      <button
-        v-if="store.hasDocument"
-        type="button"
-        class="tb-btn"
-        :disabled="store.busy"
-        @click="store.reset()"
-      >
-        {{ t('common.close') }}
-      </button>
-      <button
-        v-if="store.hasDocument"
-        type="button"
-        class="tb-btn"
-        :title="t('toolbar.printHint')"
-        :disabled="store.busy"
-        data-testid="print"
-        @click="emit('print')"
-      >
-        {{ t('toolbar.print') }}
-      </button>
-      <button
-        v-if="store.hasDocument"
-        type="button"
-        class="tb-btn tb-primary"
-        :title="t('toolbar.exportHint')"
-        :disabled="store.busy"
-        @click="emit('export')"
-      >
-        {{ store.busy ? t('toolbar.wait') : t('toolbar.export') }}
-      </button>
+      <span v-if="contextEmpty" class="text-sm pdf-control-muted" data-testid="context-hint">
+        {{ t('toolbar.contextHint') }}
+      </span>
     </div>
   </div>
 </template>
@@ -675,5 +704,13 @@ function chooseTool(id: Tool): void {
 
 .tb-btn {
   @apply rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+/* Kontextzeile: einzeilig, schmale Fenster scrollen waagrecht statt umzubrechen. */
+.tb-context > * {
+  @apply shrink-0 whitespace-nowrap;
+}
+.tb-context .pdf-tool-group {
+  @apply flex-nowrap;
 }
 </style>

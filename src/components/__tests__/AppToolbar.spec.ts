@@ -183,8 +183,8 @@ describe('AppToolbar', () => {
     })
     const wrapper = mount(AppToolbar)
     const current = () => store.pages[0]!.annotations[0]!
-    const x = wrapper.get<HTMLInputElement>('[data-testid="selected-text-x"]')
-    const y = wrapper.get<HTMLInputElement>('[data-testid="selected-text-y"]')
+    const x = wrapper.get<HTMLInputElement>('[data-testid="position-x"]')
+    const y = wrapper.get<HTMLInputElement>('[data-testid="position-y"]')
     // 72 pt = 25,4 mm; 144 pt = 50,8 mm.
     expect(x.element.value).toBe('25.4')
     expect(y.element.value).toBe('50.8')
@@ -210,5 +210,117 @@ describe('AppToolbar', () => {
     // Alle Schritte zusammen sind ein Undo-Schritt.
     store.undo()
     expect(current()).toMatchObject({ x: 72, y: 144 })
+  })
+
+  it('zeigt die Position nur bei ausgewähltem Text oder Bild und verschiebt auch Bilder', async () => {
+    const store = useDocumentStore()
+    store.pages.push({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 595.28, height: 841.89 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    store.selectedPageId = 'p'
+    const imageId = store.addAnnotation('p', {
+      kind: 'image',
+      dataUrl: 'data:image/png;base64,AAAA',
+      x: 72,
+      y: 144,
+      width: 200,
+      height: 100,
+    })
+    const highlightId = store.addAnnotation('p', {
+      kind: 'highlight',
+      color: '#ffff00',
+      x: 10,
+      y: 10,
+      width: 50,
+      height: 20,
+    })
+    const wrapper = mount(AppToolbar)
+    const controls = '[data-testid="position-controls"]'
+
+    // Ohne Auswahl und bei anderen Objekten bleibt die Steuerung ausgeblendet.
+    store.selectedAnnotationId = null
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find(controls).exists()).toBe(false)
+    store.selectedAnnotationId = highlightId
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find(controls).exists()).toBe(false)
+
+    store.selectedAnnotationId = imageId
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="text-format"]').exists()).toBe(false)
+    const image = () => store.pages[0]!.annotations.find((a) => a.id === imageId)!
+    const x = wrapper.get<HTMLInputElement>('[data-testid="position-x"]')
+    const y = wrapper.get<HTMLInputElement>('[data-testid="position-y"]')
+    expect(x.element.value).toBe('25.4')
+    expect(y.element.value).toBe('50.8')
+
+    await x.setValue('100')
+    await y.setValue('20')
+    expect(image().x).toBeCloseTo((100 * 72) / 25.4, 3)
+    expect(image().y).toBeCloseTo((20 * 72) / 25.4, 3)
+
+    // Außerhalb der Seite: das Bild bleibt vollständig auf dem Blatt, die Größe unverändert.
+    await x.setValue('500')
+    await y.setValue('999')
+    expect(image()).toMatchObject({ width: 200, height: 100 })
+    expect(image().x).toBeCloseTo(595.28 - 200, 3)
+    expect(image().y).toBeCloseTo(841.89 - 100, 3)
+
+    store.undo()
+    expect(image()).toMatchObject({ x: 72, y: 144 })
+
+    store.selectedAnnotationId = null
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find(controls).exists()).toBe(false)
+  })
+
+  it('hält die Kontextzeile immer bereit, damit der Editor nicht springt', async () => {
+    const store = useDocumentStore()
+    store.pages.push({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 595.28, height: 841.89 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    store.selectedPageId = 'p'
+    const id = store.addAnnotation('p', {
+      kind: 'text',
+      text: 'Hallo',
+      fontSize: 14,
+      color: '#000000',
+      x: 72,
+      y: 144,
+    })
+    store.selectedAnnotationId = null
+    const wrapper = mount(AppToolbar)
+    const bar = () => wrapper.get('[data-testid="context-bar"]')
+    const hint = '[data-testid="context-hint"]'
+
+    // Ohne Auswahl: Zeile vorhanden, nur mit Hinweis.
+    expect(bar().classes()).toContain('h-11')
+    expect(wrapper.find(hint).exists()).toBe(true)
+
+    // Auswahl: Format, Position und Löschen stehen in derselben Zeile, der Hinweis entfällt.
+    store.selectedAnnotationId = id
+    await wrapper.vm.$nextTick()
+    for (const part of ['text-format', 'position-controls', 'delete-annotation']) {
+      expect(bar().find(`[data-testid="${part}"]`).exists()).toBe(true)
+    }
+    expect(wrapper.find(hint).exists()).toBe(false)
+
+    // Werkzeug mit eigenen Einstellungen: ebenfalls in der Kontextzeile.
+    store.setTool('highlight')
+    await wrapper.vm.$nextTick()
+    expect(bar().find('[data-testid="highlight-color"]').exists()).toBe(true)
+    expect(wrapper.find(hint).exists()).toBe(false)
   })
 })
