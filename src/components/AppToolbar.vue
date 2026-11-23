@@ -5,7 +5,8 @@ import NewDocumentDialog from '@/components/NewDocumentDialog.vue'
 import { useI18n } from '@/i18n'
 import { displaySize, normalizeRotation, TEXT_LINE_HEIGHT } from '@/lib/geometry'
 import { IMAGE_ACCEPT, readImageFile } from '@/lib/image'
-import { CSS_FONTS, longestLineWidth, minTextWidth } from '@/lib/textLayout'
+import { customFonts } from '@/lib/customFonts'
+import { cssFontFamily, longestLineWidth, minTextWidth } from '@/lib/textLayout'
 import { unwrapSoft } from '@/lib/textWrap'
 import { useDocumentStore } from '@/stores/document'
 import type { FontFamily, TextAlign, Tool } from '@/types/pdf'
@@ -190,6 +191,8 @@ const fontOptions: { value: FontFamily; label: string }[] = [
   { value: 'sans', label: 'Helvetica' },
   { value: 'serif', label: 'Times' },
   { value: 'mono', label: 'Courier' },
+  // Eigene Schriften aus src/assets/fonts/editor/, alphabetisch nach den Standardschriften.
+  ...customFonts().map((f) => ({ value: f.id, label: f.label })),
 ]
 
 /** Ausgewählte Markierung (Farbe nachträglich änderbar). */
@@ -493,7 +496,7 @@ function chooseTool(id: Tool): void {
           class="rounded border pdf-control-border px-1 py-0.5"
           :title="t('toolbar.selectionFont')"
           :aria-label="t('toolbar.selectionFont')"
-          :style="{ fontFamily: CSS_FONTS[selectedFont] }"
+          :style="{ fontFamily: cssFontFamily(selectedFont) }"
           data-testid="selected-font"
         >
           <!-- Die Schriftauswahl zeigt jede Schrift in sich selbst, nicht in der Oberflächenschrift. -->
@@ -501,7 +504,7 @@ function chooseTool(id: Tool): void {
             v-for="f in fontOptions"
             :key="f.value"
             :value="f.value"
-            :style="{ fontFamily: CSS_FONTS[f.value] }"
+            :style="{ fontFamily: cssFontFamily(f.value) }"
           >
             {{ f.label }}
           </option>

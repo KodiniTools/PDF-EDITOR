@@ -5,9 +5,11 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import { installI18n } from './i18n'
+import { installUiFonts } from './lib/uiFonts'
 import router from './router'
 
 installI18n()
+installUiFonts()
 
 const app = createApp(App)
 

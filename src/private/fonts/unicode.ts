@@ -6,14 +6,14 @@
 import fontkit from '@pdf-lib/fontkit'
 import type { PDFDocument, PDFFont } from 'pdf-lib'
 
-import type { FontFamily } from '@/types/pdf'
+import type { StandardFontFamily } from '@/types/pdf'
 
 import sansBoldUrl from './DejaVuSansBold.ttf?inline'
 import monoUrl from './DejaVuSansMono.ttf?inline'
 import sansUrl from './DejaVuSans.ttf?inline'
 import serifUrl from './DejaVuSerif.ttf?inline'
 
-export type UnicodeFace = FontFamily | 'sans-bold'
+export type UnicodeFace = StandardFontFamily | 'sans-bold'
 
 const DATA_URLS: Record<UnicodeFace, string> = {
   sans: sansUrl,

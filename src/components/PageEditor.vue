@@ -7,6 +7,7 @@ import {
   onMounted,
   ref,
   watch,
+  watchEffect,
 } from 'vue'
 
 import PdfPageCanvas from '@/components/PdfPageCanvas.vue'
@@ -15,13 +16,14 @@ import { HIGHLIGHT_OPACITY } from '@/services/pdfExport'
 import { displaySize, normalizeRotation, TEXT_LINE_HEIGHT } from '@/lib/geometry'
 import type { TextLine } from '@/lib/textLines'
 import {
-  CSS_FONTS,
+  cssFontFamily,
   longestLineWidth,
   minTextWidth,
   reflowText,
   sameBreaks,
   type Reflow,
 } from '@/lib/textLayout'
+import { customFontsLoaded, ensureCustomFont } from '@/lib/customFonts'
 import { adjustSoftBreaks, caretAfterWrap, unwrapSoft } from '@/lib/textWrap'
 import { getTextLines } from '@/services/pdfRenderer'
 import { useDocumentStore } from '@/stores/document'
@@ -397,13 +399,24 @@ watch(
           ? `${a.id}:${a.x}:${a.fontSize}:${a.font ?? ''}:${a.bold === true}:${a.italic === true}`
           : '',
       )
-      .join('|'),
+      .join('|') + `#${customFontsLoaded.value}`,
   () => {
     for (const a of props.page.annotations) {
-      if (a.kind === 'text' && a.softBreaks !== undefined) applyReflow(a, `style:${a.id}`)
+      if (a.kind !== 'text') continue
+      // Eigene Schrift erst laden: Vorher misst der Browser mit der Ersatzschrift.
+      // Ist sie da, steigt `customFontsLoaded` und dieser Watcher läuft erneut.
+      if (!ensureCustomFont(a.font, a)) continue
+      if (a.softBreaks !== undefined) applyReflow(a, `style:${a.id}`)
     }
   },
 )
+
+/** Eigene Schriften der Seite laden, sobald sie vorkommen (auch ohne automatischen Umbruch). */
+watchEffect(() => {
+  for (const a of props.page.annotations) {
+    if (a.kind === 'text') ensureCustomFont(a.font, a)
+  }
+})
 
 /**
  * Beendet die Textbearbeitung und entfernt leere Textannotationen.
@@ -674,7 +687,7 @@ function px(v: number): string {
             color: a.color,
             fontSize: px(a.fontSize),
             lineHeight: String(TEXT_LINE_HEIGHT),
-            fontFamily: CSS_FONTS[a.font ?? 'sans'],
+            fontFamily: cssFontFamily(a.font),
             fontWeight: a.bold ? 'bold' : 'normal',
             fontStyle: a.italic ? 'italic' : 'normal',
             textAlign: a.align ?? 'left',
