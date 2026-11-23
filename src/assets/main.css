@@ -1,14 +1,20 @@
 @import 'tailwindcss';
 
 html,
-body,
-#app {
+body {
   height: 100%;
 }
 
-body {
+/*
+ * Navigation und Editor füllen zusammen genau den sichtbaren Bereich.
+ * Der globale Footer (nur öffentliche Variante) folgt darunter und wird
+ * durch Scrollen der Seite erreicht, damit er dem Editor keine Höhe nimmt.
+ */
+#app-screen {
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
 }
 
 #global-nav-slot {
@@ -20,4 +26,9 @@ body {
 #app {
   flex: 1 1 0;
   min-height: 0;
+}
+
+/* Der Abstand des Partials würde zwischen Editor und Footer den Seitenhintergrund zeigen. */
+#global-footer-slot .site-footer {
+  margin-top: 0;
 }

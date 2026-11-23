@@ -58,6 +58,66 @@ function globalNavigation(enabled: boolean): Plugin {
   }
 }
 
+/**
+ * Globalen Footer aus dem KodiniTools-Partial einbinden (nur öffentliche Variante).
+ * Quelle: `KODINI_FOOTER_PARTIAL`, sonst das Server-Partial, sonst `partials/footer.html`.
+ *
+ * Skripte des Partials laufen wie bei der Navigation als gebündeltes Modul und nicht
+ * inline. `document.write` funktioniert dort nicht (es würde die geladene Seite
+ * ersetzen), deshalb wird die Jahreszahl über einen Platzhalter gesetzt.
+ * Mit `enabled = false` (private Variante) entfällt der Footer vollständig.
+ */
+function globalFooter(enabled: boolean): Plugin {
+  const deployedPartial = '/var/www/kodinitools.com/partials/footer.html'
+  const partial =
+    process.env.KODINI_FOOTER_PARTIAL ??
+    (existsSync(deployedPartial)
+      ? deployedPartial
+      : fileURLToPath(new URL('./partials/footer.html', import.meta.url)))
+  const yearScript =
+    /<script\s*>\s*document\.write\(\s*new Date\(\)\.getFullYear\(\)\s*\)\s*;?\s*<\/script>/gi
+  const script = /<script\s*>([\s\S]*?)<\/script>/gi
+  const moduleId = '\0virtual:kodini-footer'
+  const fillYear =
+    "document.querySelectorAll('[data-kodini-year]').forEach(function (el) {" +
+    ' el.textContent = String(new Date().getFullYear()) })'
+
+  return {
+    name: 'kodini-global-footer',
+    transformIndexHtml(html) {
+      if (!enabled) {
+        return html.replace(
+          /[ \t]*<div id="global-footer-slot"><!--INJECT:footer--><\/div>\r?\n?/,
+          '',
+        )
+      }
+      const markup = readFileSync(partial, 'utf8')
+        .replace(yearScript, '<span data-kodini-year></span>')
+        .replace(script, '')
+      return html.replace('<!--INJECT:footer-->', () => markup)
+    },
+    resolveId(id) {
+      if (id === 'virtual:kodini-footer') return moduleId
+    },
+    load(id) {
+      if (id !== moduleId) return
+      if (!enabled) return ''
+      this.addWatchFile(partial)
+      const scripts = Array.from(
+        readFileSync(partial, 'utf8').replace(yearScript, '').matchAll(script),
+        (match) => match[1] ?? '',
+      ).filter((code) => {
+        if (!code.includes('document.write')) return true
+        this.warn('Footer-Partial: Skript mit document.write wurde ausgelassen.')
+        return false
+      })
+      // Semikolon als Trenner: die Skripte sind IIFEs und würden sonst als Aufruf
+      // des vorherigen Ausdrucks gelesen.
+      return [fillYear, ...scripts].join(';\n')
+    },
+  }
+}
+
 /** Private Seite: nicht indexieren, keine Canonical-URL der öffentlichen App. */
 function privateHtml(): Plugin {
   return {
@@ -90,6 +150,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       vueDevTools(),
       globalNavigation(!isPrivate),
+      globalFooter(!isPrivate),
       ...(isPrivate ? [privateHtml()] : []),
     ],
     resolve: {

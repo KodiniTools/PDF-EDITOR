@@ -4,3 +4,4 @@
 declare const __PRIVATE__: boolean
 
 declare module 'virtual:kodini-nav'
+declare module 'virtual:kodini-footer'
