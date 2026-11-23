@@ -5,13 +5,13 @@
  * interpoliert. Ergebnis sind Rechtecke im angezeigten Seitenraum.
  */
 import type { TextLine } from '@/lib/textLines'
-import type { FontFamily } from '@/types/pdf'
+import type { StandardFontFamily } from '@/types/pdf'
 
 /**
  * Misst die Breite eines Texts in beliebigen Einheiten (nur Verhältnisse zählen).
  * Im Browser: Canvas mit ähnlicher Schrift (measure.ts); Standard: Zeichenzahl.
  */
-export type MeasureFn = (text: string, font: FontFamily) => number
+export type MeasureFn = (text: string, font: StandardFontFamily) => number
 
 export const measureByCharCount: MeasureFn = (text) => text.length
 

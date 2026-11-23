@@ -2,7 +2,11 @@
 export type Rotation = 0 | 90 | 180 | 270
 
 /** Schriftfamilie für Textannotationen; im Export eine der PDF-Standardschriften. */
-export type FontFamily = 'sans' | 'serif' | 'mono'
+/** PDF-Standardschriften (ohne Einbettung). */
+export type StandardFontFamily = 'sans' | 'serif' | 'mono'
+/** Eigene Schrift aus `src/assets/fonts/editor/` (siehe `lib/customFonts`). */
+export type CustomFontFamily = `custom:${string}`
+export type FontFamily = StandardFontFamily | CustomFontFamily
 
 /** Rechteck in PDF-Benutzerkoordinaten (Punkte, Ursprung unten links). */
 export interface PdfBox {

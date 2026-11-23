@@ -17,7 +17,16 @@ import {
   TEXT_BASELINE_RATIO,
   TEXT_LINE_HEIGHT,
 } from '@/lib/geometry'
-import type { Annotation, FontFamily, PageRef, Rotation, TextAlign } from '@/types/pdf'
+import { customFontBytes, isCustomFont } from '@/lib/customFonts'
+import type {
+  Annotation,
+  CustomFontFamily,
+  FontFamily,
+  PageRef,
+  Rotation,
+  StandardFontFamily,
+  TextAlign,
+} from '@/types/pdf'
 
 /** Schnitt einer Schrift: fett und/oder kursiv. */
 export interface FontStyle {
@@ -27,7 +36,7 @@ export interface FontStyle {
 
 /** Standardschriften je Familie: normal, fett, kursiv, fett-kursiv. */
 const STANDARD_FONTS: Record<
-  FontFamily,
+  StandardFontFamily,
   readonly [StandardFonts, StandardFonts, StandardFonts, StandardFonts]
 > = {
   sans: [
@@ -50,7 +59,7 @@ const STANDARD_FONTS: Record<
   ],
 }
 
-export function standardFontFor(family: FontFamily, style: FontStyle): StandardFonts {
+export function standardFontFor(family: StandardFontFamily, style: FontStyle): StandardFonts {
   const [regular, bold, italic, boldItalic] = STANDARD_FONTS[family]
   if (style.bold) return style.italic ? boldItalic : bold
   return style.italic ? italic : regular
@@ -114,10 +123,10 @@ function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; type: 'png' | 'jp
 
 interface DrawContext {
   doc: PDFDocument
-  /** Lädt eine Standardschrift bei Bedarf und bettet sie nur einmal ein. */
+  /** Lädt eine Standard- oder eigene Schrift bei Bedarf und bettet sie nur einmal ein. */
   font: (family: FontFamily, style: FontStyle) => Promise<PDFFont>
   /** Optional: Schrift für Text außerhalb von WinAnsi (z. B. č, ć, đ). */
-  unicodeFont?: (family: FontFamily, style: FontStyle) => Promise<PDFFont>
+  unicodeFont?: (family: StandardFontFamily, style: FontStyle) => Promise<PDFFont>
   images: Map<string, PDFImage>
 }
 
@@ -177,7 +186,12 @@ async function drawAnnotation(
       const family = a.font ?? 'sans'
       const style: FontStyle = { bold: a.bold === true, italic: a.italic === true }
       let font = await ctx.font(family, style)
-      if (ctx.unicodeFont && !canEncode(a.text.replace(/\r?\n/g, ''), font)) {
+      // Eigene Schriften sind eingebettet und bringen ihre Zeichen selbst mit.
+      if (
+        !isCustomFont(family) &&
+        ctx.unicodeFont &&
+        !canEncode(a.text.replace(/\r?\n/g, ''), font)
+      ) {
         font = await ctx.unicodeFont(family, style)
       }
       const drawn = lines.map((line) => sanitizeForFont(line, font))
@@ -234,7 +248,12 @@ export interface ExportOptions {
    * Bettet eine Unicode-Schrift ein, wenn ein Textfeld Zeichen außerhalb von
    * WinAnsi enthält (nur privater Build). Ohne: Ersatz durch „?“.
    */
-  unicodeFont?: (doc: PDFDocument, family: FontFamily, style: FontStyle) => Promise<PDFFont>
+  unicodeFont?: (doc: PDFDocument, family: StandardFontFamily, style: FontStyle) => Promise<PDFFont>
+  /**
+   * Liefert die Datei einer eigenen Schrift (Standard: aus `src/assets/fonts/editor/`).
+   * `null`: Schrift unbekannt, der Text wird in Helvetica gesetzt.
+   */
+  customFont?: (family: CustomFontFamily, style: FontStyle) => Promise<Uint8Array> | null
 }
 
 export async function exportPdf(
@@ -250,13 +269,33 @@ export async function exportPdf(
   const fontKey = (family: FontFamily, style: FontStyle) =>
     `${family}:${style.bold ? 'b' : ''}${style.italic ? 'i' : ''}`
   const fonts = new Map<string, Promise<PDFFont>>()
+  const loadCustom = options.customFont ?? customFontBytes
+  /** Eigene Schrift vollständig einbetten (Teilmengen sind bei manchen Schriften fehlerhaft). */
+  async function embedCustom(family: CustomFontFamily, style: FontStyle): Promise<PDFFont> {
+    const pending = loadCustom(family, style)
+    if (!pending) return out.embedFont(standardFontFor('sans', style))
+    let bytes: Uint8Array
+    try {
+      bytes = await pending
+    } catch (err) {
+      throw new PdfEditorError(t('error.fontLoadFailed'), { cause: err })
+    }
+    out.registerFontkit((await import('@pdf-lib/fontkit')).default)
+    try {
+      return await out.embedFont(bytes, { subset: false })
+    } catch (err) {
+      throw new PdfEditorError(t('error.fontEmbedFailed'), { cause: err })
+    }
+  }
   const ctx: DrawContext = {
     doc: out,
     font: (family, style) => {
       const key = fontKey(family, style)
       let font = fonts.get(key)
       if (!font) {
-        font = out.embedFont(standardFontFor(family, style))
+        font = isCustomFont(family)
+          ? embedCustom(family, style)
+          : out.embedFont(standardFontFor(family, style))
         fonts.set(key, font)
       }
       return font

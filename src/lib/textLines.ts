@@ -4,7 +4,7 @@
  * Bewusst ohne pdf.js-Import, damit die Logik in Node testbar ist.
  */
 
-import type { FontFamily } from '@/types/pdf'
+import type { StandardFontFamily } from '@/types/pdf'
 
 /** Affine Matrix [a, b, c, d, e, f] wie in PDF/pdf.js. */
 export type Matrix = readonly [number, number, number, number, number, number]
@@ -47,13 +47,13 @@ export interface TextLine {
   baseline: number
   fontSize: number
   /** Nächstliegende Standardschrift für den Ersatztext. */
-  font: FontFamily
+  font: StandardFontFamily
   /** Herkunft der Zeichen, aufsteigend nach `start`. */
   segments: TextSegment[]
 }
 
 /** Ordnet eine pdf.js-Schriftfamilie einer PDF-Standardschrift zu. */
-export function toFontFamily(family: string | undefined): FontFamily {
+export function toFontFamily(family: string | undefined): StandardFontFamily {
   const f = (family ?? '').toLowerCase()
   if (f.includes('mono') || f.includes('courier')) return 'mono'
   if ((f.includes('serif') && !f.includes('sans')) || f.includes('times')) return 'serif'

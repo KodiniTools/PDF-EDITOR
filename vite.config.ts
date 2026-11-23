@@ -150,6 +150,11 @@ function serverFavicon(): Plugin {
  * Fehlt eine Datei, greift die Systemschrift aus `--font-sans`.
  */
 function serverFonts(): Plugin {
+  // Liegen beide Dateien im Repo, werden sie gebündelt (src/lib/uiFonts.ts) – nichts einfügen.
+  const local = ['Supreme-Regular.woff2', 'Supreme-Bold.woff2'].every((file) =>
+    existsSync(fileURLToPath(new URL(`./src/assets/fonts/ui/${file}`, import.meta.url))),
+  )
+  if (local) return { name: 'kodini-server-fonts' }
   const base = (process.env.KODINI_FONT_BASE ?? '/fonts').replace(/\/+$/, '')
   const faces = [
     { weight: 400, file: 'Supreme-Regular.woff2' },

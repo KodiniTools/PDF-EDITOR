@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 
@@ -158,5 +161,62 @@ describe('Textformat im Export', () => {
       .map((s) => /\/BaseFont\s*\/([\w-]+)/.exec(s)?.[1])
       .sort()
     expect(names).toEqual(['Courier-BoldOblique', 'Helvetica', 'Helvetica-Bold', 'Times-Italic'])
+  })
+
+  it('bettet eigene Schriften ein und fällt bei unbekannten auf Helvetica zurück', async () => {
+    const ttf = new Uint8Array(readFileSync(resolve('src/private/fonts/DejaVuSans.ttf')))
+    const sources = new Map([['a', await makePdf([300])]])
+    const text = { kind: 'text' as const, x: 10, y: 20, fontSize: 12, color: '#000000' }
+    const requested: string[] = []
+    const bytes = await exportPdf(
+      sources,
+      [
+        ref('a', 0, 300, {
+          annotations: [
+            // č/ć/đ liegen außerhalb von WinAnsi: die eigene Schrift bringt sie selbst mit.
+            { ...text, id: 't1', text: 'Eigene Schrift čćđ', font: 'custom:Test' },
+            { ...text, id: 't2', text: 'noch einmal', font: 'custom:Test', align: 'right' },
+            { ...text, id: 't3', text: 'unbekannt', font: 'custom:Fehlt' },
+          ],
+        }),
+      ],
+      {
+        customFont: (family, style) => {
+          requested.push(`${family}:${style.bold}:${style.italic}`)
+          return family === 'custom:Test' ? Promise.resolve(ttf) : null
+        },
+      },
+    )
+    // Je Schrift und Schnitt nur eine Einbettung.
+    expect(requested).toEqual(['custom:Test:false:false', 'custom:Fehlt:false:false'])
+    const doc = await PDFDocument.load(bytes)
+    const objects = doc.context.enumerateIndirectObjects().map(([, obj]) => String(obj))
+    expect(objects.some((s) => /\/BaseFont\s*\/\S*DejaVuSans/.test(s))).toBe(true)
+    expect(objects.some((s) => s.includes('/FontFile2'))).toBe(true)
+    expect(objects.some((s) => /\/BaseFont\s*\/Helvetica\b/.test(s))).toBe(true)
+  })
+
+  it('meldet eine nicht ladbare eigene Schrift verständlich', async () => {
+    const sources = new Map([['a', await makePdf([300])]])
+    const page = ref('a', 0, 300, {
+      annotations: [
+        {
+          kind: 'text',
+          id: 't1',
+          x: 10,
+          y: 20,
+          fontSize: 12,
+          color: '#000000',
+          text: 'x',
+          font: 'custom:Test',
+        },
+      ],
+    })
+    await expect(
+      exportPdf(sources, [page], { customFont: () => Promise.reject(new Error('offline')) }),
+    ).rejects.toBeInstanceOf(PdfEditorError)
+    await expect(
+      exportPdf(sources, [page], { customFont: () => Promise.resolve(new Uint8Array([1, 2, 3])) }),
+    ).rejects.toBeInstanceOf(PdfEditorError)
   })
 })

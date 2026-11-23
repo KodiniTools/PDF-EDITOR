@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppToolbar from '@/components/AppToolbar.vue'
+import { setCustomFontsForTest } from '@/lib/customFonts'
 import { useDocumentStore } from '@/stores/document'
 
 vi.mock('@/services/pdfRenderer', () => ({
@@ -345,5 +346,49 @@ describe('AppToolbar', () => {
     // Auch der Dialog trägt dann den passenden Titel.
     await button().trigger('click')
     expect(wrapper.get('#new-doc-title').text()).toBe('Neue Seite')
+  })
+
+  it('bietet eigene Schriften nach den Standardschriften in der Schriftauswahl an', async () => {
+    setCustomFontsForTest({
+      '/src/assets/fonts/editor/Open_Sans-Regular.ttf': '/a/os.ttf',
+      '/src/assets/fonts/editor/Caveat-Regular.ttf': '/a/caveat.ttf',
+    })
+    try {
+      const store = useDocumentStore()
+      store.pages.push({
+        id: 'p',
+        sourceId: 's',
+        sourceIndex: 0,
+        box: { x: 0, y: 0, width: 595.28, height: 841.89 },
+        baseRotation: 0,
+        rotation: 0,
+        annotations: [],
+      })
+      store.selectedPageId = 'p'
+      store.selectedAnnotationId = store.addAnnotation('p', {
+        kind: 'text',
+        text: 'Hallo',
+        fontSize: 14,
+        color: '#000000',
+        x: 72,
+        y: 144,
+      })
+      const wrapper = mount(AppToolbar)
+      const select = wrapper.get<HTMLSelectElement>('[data-testid="selected-font"]')
+      expect(select.findAll('option').map((o) => o.text())).toEqual([
+        'Helvetica',
+        'Times',
+        'Courier',
+        'Caveat',
+        'Open Sans',
+      ])
+      await select.setValue('custom:Open_Sans')
+      expect(store.pages[0]!.annotations[0]).toMatchObject({ font: 'custom:Open_Sans' })
+      expect(select.element.style.fontFamily).toContain('pdfed-Open_Sans')
+      store.undo()
+      expect(store.pages[0]!.annotations[0]).not.toHaveProperty('font', 'custom:Open_Sans')
+    } finally {
+      setCustomFontsForTest({})
+    }
   })
 })

@@ -40,6 +40,10 @@ export const en: Record<MessageKey, string> = {
   'error.pdfOpenFailed': 'The PDF could not be opened.',
   'error.documentNotOpen': 'The document is not open.',
   'error.imageFormatExport': 'Image format not supported (PNG or JPEG only).',
+  'error.fontLoadFailed':
+    'The font could not be loaded. Please check your connection and export again.',
+  'error.fontEmbedFailed':
+    'The font could not be embedded in the PDF. Please choose a different font.',
   'error.nothingToExport': 'There are no pages to export.',
   'error.sourceMissing': 'Source file is missing ({id}).',
   'error.sourceUnreadable': 'A source file could not be read.',

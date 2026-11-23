@@ -43,6 +43,10 @@ export const de = {
   'error.pdfOpenFailed': 'Die PDF konnte nicht geöffnet werden.',
   'error.documentNotOpen': 'Dokument ist nicht geöffnet.',
   'error.imageFormatExport': 'Bildformat nicht unterstützt (nur PNG oder JPEG).',
+  'error.fontLoadFailed':
+    'Die Schrift konnte nicht geladen werden. Bitte Verbindung prüfen und erneut exportieren.',
+  'error.fontEmbedFailed':
+    'Die Schrift konnte nicht in das PDF eingebettet werden. Bitte eine andere Schrift wählen.',
   'error.nothingToExport': 'Es gibt keine Seiten zum Exportieren.',
   'error.sourceMissing': 'Quelldatei fehlt ({id}).',
   'error.sourceUnreadable': 'Eine Quelldatei konnte nicht gelesen werden.',

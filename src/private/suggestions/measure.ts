@@ -3,11 +3,11 @@
  * Nur Verhältnisse innerhalb eines Textelements werden verwendet, daher genügt eine
  * ähnliche Schrift (proportional statt „jedes Zeichen gleich breit“).
  */
-import type { FontFamily } from '@/types/pdf'
+import type { StandardFontFamily } from '@/types/pdf'
 
 import { measureByCharCount, type MeasureFn } from './locate'
 
-const CSS_FONTS: Record<FontFamily, string> = {
+const CSS_FONTS: Record<StandardFontFamily, string> = {
   sans: '100px Helvetica, Arial, sans-serif',
   serif: '100px "Times New Roman", Times, serif',
   mono: '100px "Courier New", Courier, monospace',

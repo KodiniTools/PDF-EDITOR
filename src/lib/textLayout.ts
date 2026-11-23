@@ -3,13 +3,23 @@
  * und den Reiter „Text“ der privaten Seitenleiste.
  */
 import { unwrapSoft, wrapTextToWidth } from '@/lib/textWrap'
-import type { FontFamily, TextAnnotation } from '@/types/pdf'
+import { customFont, isCustomFont } from '@/lib/customFonts'
+import type { FontFamily, StandardFontFamily, TextAnnotation } from '@/types/pdf'
 
 /** Bildschirmschriften passend zu den PDF-Standardschriften im Export. */
-export const CSS_FONTS: Record<FontFamily, string> = {
+export const CSS_FONTS: Record<StandardFontFamily, string> = {
   sans: 'Helvetica, Arial, sans-serif',
   serif: '"Times New Roman", Times, serif',
   mono: '"Courier New", Courier, monospace',
+}
+
+/** CSS-`font-family` einer Inhaltsschrift; unbekannte eigene Schriften fallen auf Helvetica. */
+export function cssFontFamily(family: FontFamily | undefined): string {
+  if (isCustomFont(family)) {
+    const font = customFont(family)
+    return font ? `"${font.cssName}", ${CSS_FONTS.sans}` : CSS_FONTS.sans
+  }
+  return CSS_FONTS[family ?? 'sans']
 }
 
 export type TextStyle = Pick<TextAnnotation, 'fontSize' | 'font' | 'bold' | 'italic'>
@@ -17,7 +27,7 @@ export type TextStyle = Pick<TextAnnotation, 'fontSize' | 'font' | 'bold' | 'ita
 /** CSS-Kurzschreibweise `font` für Messung und Anzeige (Größe in Seitenpunkten). */
 export function cssFont(style: TextStyle): string {
   const parts = [style.italic ? 'italic' : '', style.bold ? 'bold' : '', `${style.fontSize}px`]
-  return `${parts.filter(Boolean).join(' ')} ${CSS_FONTS[style.font ?? 'sans']}`
+  return `${parts.filter(Boolean).join(' ')} ${cssFontFamily(style.font)}`
 }
 
 let measureContext: CanvasRenderingContext2D | null | undefined
