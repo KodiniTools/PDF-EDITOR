@@ -31,18 +31,19 @@ function onDragEnd(): void {
 </script>
 
 <template>
-  <aside
-    class="flex w-48 shrink-0 flex-col border-r border-gray-200 bg-white"
-    aria-label="Seitenübersicht"
-  >
-    <div class="border-b border-gray-200 px-3 py-2 text-xs text-gray-500">
-      <div>{{ store.pages.length }} Seite(n) · ziehen zum Sortieren</div>
+  <aside class="pdf-editor-pages" aria-label="Seitenübersicht">
+    <div class="pdf-pages-header">
+      <div class="flex items-baseline justify-between gap-2">
+        <h2>Seiten</h2>
+        <span>{{ store.pages.length }}</span>
+      </div>
+      <p>Ziehen zum Sortieren</p>
       <div class="mt-1 flex items-center justify-between gap-1" data-testid="mark-bar">
         <span>{{ store.markedPages.length }} markiert</span>
         <button
           v-if="store.markedPages.length < store.pages.length"
           type="button"
-          class="text-blue-700 hover:underline"
+          class="pdf-pages-link"
           @click="store.setAllMarked(true)"
         >
           Alle
@@ -50,22 +51,23 @@ function onDragEnd(): void {
         <button
           v-if="store.markedPages.length > 0"
           type="button"
-          class="text-blue-700 hover:underline"
+          class="pdf-pages-link"
           @click="store.setAllMarked(false)"
         >
           Keine
         </button>
       </div>
     </div>
-    <ol class="flex-1 space-y-1 overflow-y-auto p-2">
+    <ol class="pdf-pages-list">
       <li
         v-for="(page, index) in store.pages"
         :key="page.id"
+        class="pdf-pages-item"
         draggable="true"
         :class="{
           'opacity-40': dragFrom === index,
-          'border-t-4 border-blue-400': dragOver === index && dragFrom !== null && dragFrom > index,
-          'border-b-4 border-blue-400': dragOver === index && dragFrom !== null && dragFrom < index,
+          'pdf-drop-before': dragOver === index && dragFrom !== null && dragFrom > index,
+          'pdf-drop-after': dragOver === index && dragFrom !== null && dragFrom < index,
         }"
         @dragstart="onDragStart(index, $event)"
         @dragover.prevent="dragOver = index"

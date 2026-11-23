@@ -424,7 +424,7 @@ function px(v: number): string {
 
 <template>
   <div
-    class="relative inline-block shadow-lg"
+    class="pdf-document-page relative inline-block"
     :style="{ width: px(size.width), height: px(size.height) }"
   >
     <PdfPageCanvas

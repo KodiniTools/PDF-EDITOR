@@ -1,0 +1,199 @@
+.pdf-editor-shell .pdf-editor-pages {
+  display: flex;
+  flex: 0 0 var(--pdf-sidebar-size, 12rem);
+  flex-direction: column;
+  min-width: 0;
+  border-inline-end: var(--pdf-sidebar-inline-border, 1px) solid var(--pdf-border);
+  border-block-end: var(--pdf-sidebar-block-border, 0px) solid var(--pdf-border);
+  background: var(--pdf-panel);
+  color: var(--pdf-text);
+}
+
+.pdf-pages-header {
+  flex: none;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--pdf-border);
+  color: var(--pdf-muted);
+  font-size: 0.75rem;
+}
+
+.pdf-pages-header h2 {
+  color: var(--pdf-text);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.pdf-pages-link {
+  color: var(--pdf-cyan);
+}
+
+.pdf-pages-link:hover {
+  text-decoration: underline;
+}
+
+.pdf-pages-list {
+  display: flex;
+  flex: 1;
+  flex-direction: var(--pdf-sidebar-direction, column);
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+}
+
+.pdf-pages-item {
+  position: relative;
+  flex: 0 0 var(--pdf-sidebar-item-basis, auto);
+}
+
+.pdf-pages-item:is(.pdf-drop-before, .pdf-drop-after)::before {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  content: '';
+  border-color: var(--pdf-cyan);
+  border-style: solid;
+  border-width: var(--pdf-sidebar-drop-border, 2px 0 0);
+}
+
+.pdf-pages-item.pdf-drop-before::before {
+  inset: var(--pdf-sidebar-drop-before, -5px 0 auto);
+}
+
+.pdf-pages-item.pdf-drop-after::before {
+  inset: var(--pdf-sidebar-drop-after, auto 0 -5px);
+}
+
+.pdf-thumbnail {
+  --pdf-thumbnail-max-height: var(--pdf-sidebar-preview-height, 16rem);
+
+  display: grid;
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid var(--pdf-border);
+  border-radius: 9px;
+  background: var(--pdf-bg);
+}
+
+.pdf-thumbnail:hover {
+  background: var(--pdf-raised);
+}
+
+.pdf-thumbnail.pdf-thumbnail-marked {
+  border-color: var(--pdf-cyan);
+}
+
+.pdf-thumbnail.pdf-thumbnail-selected {
+  border-color: var(--pdf-gold);
+  background: var(--pdf-control-warning-fill);
+}
+
+.pdf-thumbnail-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.pdf-thumbnail-preview canvas {
+  max-width: 100%;
+  max-height: var(--pdf-thumbnail-max-height);
+  object-fit: contain;
+  background: transparent;
+  box-shadow: 0 2px 8px #0003;
+}
+
+.pdf-thumbnail-annotations {
+  position: absolute;
+  inset: 3px 3px auto auto;
+  min-width: 1.25em;
+  padding-inline: 4px;
+  border-radius: 4px;
+  background: var(--pdf-gold);
+  color: #14213a;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.pdf-thumbnail-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  color: var(--pdf-text);
+  font-size: 0.75rem;
+}
+
+.pdf-thumbnail-controls input {
+  accent-color: var(--pdf-cyan);
+}
+
+.pdf-thumbnail-controls .thumb-btn {
+  min-width: 22px;
+  min-height: 26px;
+  border-radius: 5px;
+}
+
+.pdf-thumbnail-controls .thumb-btn:hover:enabled {
+  background: var(--pdf-control-hover-fill);
+}
+
+.pdf-thumbnail-controls .thumb-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.pdf-editor-pages :is(button, input):focus-visible {
+  outline: 2px solid var(--pdf-cyan);
+  outline-offset: 2px;
+}
+
+.pdf-desk-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--pdf-border);
+  color: var(--pdf-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-editor-shell .pdf-document-page {
+  background: #fff;
+  box-shadow:
+    0 0 0 1px var(--pdf-border),
+    0 14px 32px var(--pdf-shadow);
+}
+
+@media (max-width: 900px) {
+  .pdf-editor-workspace:has(> .pdf-editor-private) > .pdf-editor-pages {
+    --pdf-sidebar-size: 12rem;
+    --pdf-sidebar-inline-border: 0px;
+    --pdf-sidebar-block-border: 1px;
+    --pdf-sidebar-direction: row;
+    --pdf-sidebar-item-basis: 10rem;
+    --pdf-sidebar-drop-border: 0 0 0 2px;
+    --pdf-sidebar-drop-before: 0 auto 0 -5px;
+    --pdf-sidebar-drop-after: 0 -5px 0 auto;
+    --pdf-sidebar-preview-height: 4.5rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .pdf-editor-workspace > .pdf-editor-pages {
+    --pdf-sidebar-size: 12rem;
+    --pdf-sidebar-inline-border: 0px;
+    --pdf-sidebar-block-border: 1px;
+    --pdf-sidebar-direction: row;
+    --pdf-sidebar-item-basis: 10rem;
+    --pdf-sidebar-drop-border: 0 0 0 2px;
+    --pdf-sidebar-drop-before: 0 auto 0 -5px;
+    --pdf-sidebar-drop-after: 0 -5px 0 auto;
+    --pdf-sidebar-preview-height: 4.5rem;
+  }
+}

@@ -4,6 +4,7 @@ import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import '@/assets/pdf-editor-layout.css'
 import '@/assets/pdf-editor-header.css'
 import '@/assets/pdf-editor-controls.css'
+import '@/assets/pdf-editor-workspace.css'
 
 import AppToolbar from '@/components/AppToolbar.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
@@ -313,9 +314,13 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="pdf-editor-workspace">
-      <PageSidebar v-if="store.hasDocument" class="pdf-editor-pages" />
+      <PageSidebar v-if="store.hasDocument" />
 
-      <main class="pdf-editor-desk">
+      <main class="pdf-editor-desk" aria-label="PDF-Arbeitsfläche">
+        <p v-if="store.selectedPage" class="pdf-desk-status">
+          <span>Seite {{ store.selectedPageIndex + 1 }} von {{ store.pages.length }}</span>
+          <span>{{ Math.round(store.zoom * 100) }} %</span>
+        </p>
         <div v-if="store.selectedPage" class="pdf-editor-paper-row">
           <PageEditor
             :key="store.selectedPage.id"

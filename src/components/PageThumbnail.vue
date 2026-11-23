@@ -37,19 +37,16 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
 <template>
   <div
     ref="root"
-    class="group rounded-lg border-2 p-2 transition-colors"
-    :class="
-      selected
-        ? 'border-blue-500 bg-blue-50'
-        : marked
-          ? 'border-blue-200 bg-blue-50/50'
-          : 'border-transparent hover:bg-gray-100'
-    "
+    class="pdf-thumbnail"
+    :class="{ 'pdf-thumbnail-selected': selected, 'pdf-thumbnail-marked': marked }"
   >
     <button
       type="button"
-      class="relative mx-auto block cursor-pointer shadow"
-      :style="{ width: `${THUMB_WIDTH}px`, minHeight: `${placeholderHeight}px` }"
+      class="pdf-thumbnail-preview"
+      :style="{
+        width: `${THUMB_WIDTH}px`,
+        minHeight: `min(${placeholderHeight}px, var(--pdf-thumbnail-max-height))`,
+      }"
       :aria-label="`Seite ${index + 1} auswählen`"
       :aria-current="selected ? 'page' : undefined"
       @click="emit('select')"
@@ -63,13 +60,13 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
       />
       <span
         v-if="page.annotations.length > 0"
-        class="absolute top-1 right-1 rounded bg-blue-600 px-1 text-[10px] text-white"
+        class="pdf-thumbnail-annotations"
         :title="`${page.annotations.length} Annotation(en)`"
       >
         {{ page.annotations.length }}
       </span>
     </button>
-    <div class="mt-1 flex items-center justify-between text-xs text-gray-600">
+    <div class="pdf-thumbnail-controls">
       <label
         class="flex cursor-pointer items-center gap-1 font-medium"
         :title="
@@ -123,7 +120,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         </button>
         <button
           type="button"
-          class="thumb-btn text-red-600"
+          class="thumb-btn pdf-control-error"
           title="Seite löschen (Umschalt+Entf)"
           @click="emit('remove')"
         >
@@ -133,11 +130,3 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
     </div>
   </div>
 </template>
-
-<style scoped>
-@reference 'tailwindcss';
-
-.thumb-btn {
-  @apply rounded px-1.5 py-0.5 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-30;
-}
-</style>
