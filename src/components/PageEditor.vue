@@ -14,9 +14,10 @@ import { useI18n } from '@/i18n'
 import { HIGHLIGHT_OPACITY } from '@/services/pdfExport'
 import { displaySize, normalizeRotation, TEXT_LINE_HEIGHT } from '@/lib/geometry'
 import type { TextLine } from '@/lib/textLines'
+import { caretAfterWrap, wrapTextToWidth, type WrapResult } from '@/lib/textWrap'
 import { getTextLines } from '@/services/pdfRenderer'
 import { useDocumentStore } from '@/stores/document'
-import type { Annotation, FontFamily, PageRef } from '@/types/pdf'
+import type { Annotation, FontFamily, PageRef, TextAnnotation } from '@/types/pdf'
 
 const props = defineProps<{ page: PageRef }>()
 const emit = defineEmits<{ requestSignature: [] }>()
@@ -25,6 +26,8 @@ const store = useDocumentStore()
 const { t } = useI18n()
 
 const MIN_SIZE = 4
+/** Bis zu dieser Zeigerbewegung (Bildschirmpixel) gilt ein Drücken als Klick. */
+const CLICK_TOLERANCE_PX = 3
 /** Bildschirmschriften passend zu den PDF-Standardschriften im Export. */
 const CSS_FONTS: Record<FontFamily, string> = {
   sans: 'Helvetica, Arial, sans-serif',
@@ -87,6 +90,8 @@ interface DragState {
   annotationId: string | null
   /** Undo-Gruppe: eine Zieh-Bewegung = ein Schritt. */
   group: string
+  /** Wurde der Zeiger merklich bewegt? (Sonst war es ein Klick.) */
+  moved: boolean
   orig: { x: number; y: number; width: number; height: number }
 }
 const drag = ref<DragState | null>(null)
@@ -180,6 +185,7 @@ async function placeSignature(at: { x: number; y: number }): Promise<void> {
 }
 
 async function startTextEdit(id: string, group?: string): Promise<void> {
+  if (editingId.value === id) return
   editingId.value = id
   editGroup = group ?? store.newGroup('edit')
   store.selectedAnnotationId = id
@@ -221,6 +227,7 @@ function onOverlayPointerDown(e: PointerEvent): void {
         mode: 'create',
         createKind: store.tool,
         group: '',
+        moved: false,
         pointerId: e.pointerId,
         startX: p.x,
         startY: p.y,
@@ -254,6 +261,7 @@ function onAnnotationPointerDown(e: PointerEvent, a: Annotation, mode: 'move' | 
   drag.value = {
     mode,
     group: store.newGroup('drag'),
+    moved: false,
     pointerId: e.pointerId,
     startX: p.x,
     startY: p.y,
@@ -268,6 +276,7 @@ function onPointerMove(e: PointerEvent): void {
   const p = toPagePoint(e)
   const dx = p.x - d.startX
   const dy = p.y - d.startY
+  if (Math.hypot(dx, dy) * zoom.value > CLICK_TOLERANCE_PX) d.moved = true
 
   if (d.mode === 'create') {
     preview.value = {
@@ -337,6 +346,42 @@ function onPointerUp(e: PointerEvent): void {
   preview.value = null
   // Klick ohne Bewegung erzeugt so keinen leeren Undo-Schritt.
   store.closeHistoryGroup()
+  // Text-Werkzeug: Klick (ohne Ziehen) auf einen eingefügten Text öffnet ihn zum Bearbeiten.
+  if (d.mode === 'move' && !d.moved && store.tool === 'text' && d.annotationId) {
+    const a = props.page.annotations.find((x) => x.id === d.annotationId)
+    if (a?.kind === 'text') void startTextEdit(a.id)
+  }
+}
+
+// ---- Zeilenumbruch eingefügter Texte --------------------------------------
+let measureContext: CanvasRenderingContext2D | null | undefined
+
+/** Textbreite in Seitenpunkten; ohne Canvas (z. B. Tests) eine Schätzung wie in `boxOf`. */
+function textWidth(text: string, a: TextAnnotation): number {
+  if (measureContext === undefined) {
+    try {
+      measureContext = document.createElement('canvas').getContext('2d')
+    } catch {
+      measureContext = null
+    }
+  }
+  if (!measureContext) return text.length * a.fontSize * 0.55
+  measureContext.font = `${a.fontSize}px ${CSS_FONTS[a.font ?? 'sans']}`
+  return measureContext.measureText(text).width
+}
+
+/**
+ * Bricht zu lange Zeilen am rechten Seitenrand fest um. Das Textfeld selbst bricht nicht
+ * weich um (`wrap="off"`), denn Anzeige und Export kennen nur echte Umbrüche.
+ * Ersetzte PDF-Zeilen („Text bearbeiten“) bleiben einzeilig.
+ */
+function wrapForPage(a: TextAnnotation, text: string): WrapResult | null {
+  if (a.replacesKey !== undefined) return null
+  // Etwas Reserve, weil die PDF-Schrift geringfügig breiter laufen kann als die Bildschirmschrift.
+  const available = size.value.width - a.x - a.fontSize * 0.25
+  const maxWidth = Math.max(available, a.fontSize * 4)
+  const result = wrapTextToWidth(text, maxWidth, (s) => textWidth(s, a))
+  return result.text === text ? null : result
 }
 
 /**
@@ -352,6 +397,10 @@ function stopEditing(): void {
   const a = props.page.annotations.find((x) => x.id === id)
   if (a?.kind === 'text' && a.text.trim() === '') {
     store.removeAnnotation(props.page.id, a.id, group)
+  } else if (a?.kind === 'text') {
+    // Auffangnetz, z. B. nach Eingabe per IME oder für ältere, zu lange Texte.
+    const wrapped = wrapForPage(a, a.text)
+    if (wrapped) store.updateAnnotation(props.page.id, a.id, { text: wrapped.text }, group)
   }
   // Leere Bearbeitung (nichts getippt) hinterlässt keinen Undo-Schritt.
   store.closeHistoryGroup()
@@ -395,7 +444,17 @@ onBeforeUnmount(() => document.removeEventListener('focusout', onDocumentFocusOu
 watch(() => store.tool, stopEditing, { flush: 'sync' })
 
 function onTextInput(a: Annotation, e: Event): void {
-  const value = (e.target as HTMLTextAreaElement).value
+  const el = e.target as HTMLTextAreaElement
+  let value = el.value
+  // Während einer IME-Eingabe den Text nicht verändern (Umbruch folgt beim Beenden).
+  const composing = e instanceof InputEvent && e.isComposing
+  const wrapped = a.kind === 'text' && !composing ? wrapForPage(a, value) : null
+  if (wrapped) {
+    const caret = caretAfterWrap(el.selectionStart ?? value.length, wrapped)
+    value = wrapped.text
+    el.value = value
+    el.setSelectionRange(caret, caret)
+  }
   store.updateAnnotation(props.page.id, a.id, { text: value }, editGroup ?? undefined)
 }
 
@@ -598,7 +657,8 @@ function px(v: number): string {
             v-if="editingId === a.id"
             :data-id="a.id"
             :value="a.text"
-            class="block resize-none overflow-hidden border-0 bg-white/70 p-0 outline-none [field-sizing:content]"
+            wrap="off"
+            class="block resize-none overflow-hidden border-0 bg-white/70 p-0 whitespace-pre outline-none [field-sizing:content]"
             :style="{ minWidth: '6em', font: 'inherit', color: 'inherit', lineHeight: 'inherit' }"
             :aria-label="t('editor.annotationText')"
             @input="onTextInput(a, $event)"

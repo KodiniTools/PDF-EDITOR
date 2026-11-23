@@ -108,6 +108,126 @@ describe('PageEditor', () => {
     wrapper.unmount()
   })
 
+  it('bricht zu lange Zeilen beim Tippen fest um und behält die Umbrüche nach dem Bearbeiten', async () => {
+    const { store, wrapper } = setup()
+    store.setTool('text')
+    await wrapper
+      .get('[data-testid="overlay"]')
+      .trigger('pointerdown', { button: 0, clientX: 10, clientY: 10 })
+    await flushPromises()
+
+    const long = Array.from({ length: 40 }, (_, i) => `Wort${i}`).join(' ')
+    await wrapper.get('textarea').setValue(long)
+    const typed = store.pages[0]!.annotations[0]
+    if (typed?.kind !== 'text') throw new Error('Textannotation fehlt')
+    const lines = typed.text.split('\n')
+    expect(lines.length).toBeGreaterThan(1)
+    // Nur Leerzeichen wurden zu Umbrüchen: der Inhalt bleibt gleich.
+    expect(typed.text.replace(/\n/g, ' ')).toBe(long)
+    // Schätzbreite ohne Canvas: 0,55 × Schriftgröße je Zeichen; Seite ist 600 pt breit.
+    for (const line of lines) expect(line.length * typed.fontSize * 0.55).toBeLessThanOrEqual(600)
+    // Das Textfeld zeigt denselben Text (kein weicher Umbruch).
+    expect(wrapper.get('textarea').element.value).toBe(typed.text)
+    expect(wrapper.get('textarea').attributes('wrap')).toBe('off')
+
+    await wrapper.get('textarea').trigger('blur')
+    const after = store.pages[0]!.annotations[0]
+    expect(after).toMatchObject({ kind: 'text', text: typed.text })
+    expect(wrapper.find('span.whitespace-pre').text()).toContain('Wort39')
+    wrapper.unmount()
+  })
+
+  it('bricht einen vorhandenen, zu langen Text beim Beenden der Bearbeitung um', async () => {
+    const { store, wrapper } = setup()
+    const long = Array.from({ length: 40 }, (_, i) => `Wort${i}`).join(' ')
+    const id = store.addAnnotation('p1', {
+      kind: 'text',
+      text: long,
+      fontSize: 14,
+      color: '#000000',
+      x: 10,
+      y: 10,
+    })
+    await flushPromises()
+    await wrapper.get('span.whitespace-pre').trigger('dblclick')
+    await flushPromises()
+    await wrapper.get('textarea').trigger('blur')
+    const a = store.pages[0]!.annotations.find((x) => x.id === id)
+    if (a?.kind !== 'text') throw new Error('Textannotation fehlt')
+    expect(a.text.split('\n').length).toBeGreaterThan(1)
+    expect(a.text.replace(/\n/g, ' ')).toBe(long)
+    wrapper.unmount()
+  })
+
+  it('öffnet im Text-Werkzeug einen eingefügten Text per Klick, im Verschieben-Werkzeug nicht', async () => {
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+    proto.setPointerCapture ??= () => undefined
+    proto.releasePointerCapture ??= () => undefined
+    proto.hasPointerCapture ??= () => false
+    const { store, wrapper } = setup()
+    store.addAnnotation('p1', {
+      kind: 'text',
+      text: 'Zeile 1\nZeile 2',
+      fontSize: 14,
+      color: '#000000',
+      x: 100,
+      y: 100,
+    })
+    await flushPromises()
+    const overlay = wrapper.get('[data-testid="overlay"]')
+    const click = async () => {
+      await wrapper
+        .get('span.whitespace-pre')
+        .trigger('pointerdown', { button: 0, pointerId: 1, clientX: 105, clientY: 105 })
+      await overlay.trigger('pointerup', { pointerId: 1, clientX: 105, clientY: 105 })
+      await flushPromises()
+    }
+
+    // Verschieben: Klick wählt nur aus.
+    await click()
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(store.selectedAnnotation).toMatchObject({ kind: 'text' })
+
+    // Text-Werkzeug: Klick öffnet die Bearbeitung, Umbrüche bleiben erhalten.
+    store.setTool('text')
+    await click()
+    expect(wrapper.get('textarea').element.value).toBe('Zeile 1\nZeile 2')
+    expect(store.pages[0]!.annotations).toHaveLength(1)
+    expect(store.canUndo).toBe(true)
+
+    await wrapper.get('textarea').trigger('blur')
+    expect(store.pages[0]!.annotations[0]).toMatchObject({ text: 'Zeile 1\nZeile 2', x: 100 })
+    wrapper.unmount()
+  })
+
+  it('öffnet die Bearbeitung nicht, wenn der Text im Text-Werkzeug gezogen wird', async () => {
+    const proto = HTMLElement.prototype as unknown as Record<string, unknown>
+    proto.setPointerCapture ??= () => undefined
+    proto.releasePointerCapture ??= () => undefined
+    proto.hasPointerCapture ??= () => false
+    const { store, wrapper } = setup()
+    store.addAnnotation('p1', {
+      kind: 'text',
+      text: 'Ziehen',
+      fontSize: 14,
+      color: '#000000',
+      x: 100,
+      y: 100,
+    })
+    store.setTool('text')
+    await flushPromises()
+    const overlay = wrapper.get('[data-testid="overlay"]')
+    await wrapper
+      .get('span.whitespace-pre')
+      .trigger('pointerdown', { button: 0, pointerId: 1, clientX: 105, clientY: 105 })
+    await overlay.trigger('pointermove', { pointerId: 1, clientX: 145, clientY: 125 })
+    await overlay.trigger('pointerup', { pointerId: 1, clientX: 145, clientY: 125 })
+    await flushPromises()
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(store.pages[0]!.annotations[0]).toMatchObject({ x: 140, y: 120 })
+    wrapper.unmount()
+  })
+
   it('ignoriert Klicks im Auswahl-Werkzeug', async () => {
     const { store, wrapper } = setup()
     await wrapper.get('[data-testid="overlay"]').trigger('pointerdown', { button: 0 })
