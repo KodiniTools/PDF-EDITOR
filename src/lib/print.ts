@@ -4,6 +4,7 @@
  * eingebetteten PDF, weil das ohne iframe/Plugin in allen Browsern funktioniert und
  * keine CSP-Ausnahme (frame-src blob:) braucht.
  */
+import { t } from '@/i18n'
 import { createId } from '@/lib/id'
 import { closeDocument, openDocument, renderPage } from '@/services/pdfRenderer'
 
@@ -77,7 +78,7 @@ export async function printImages(urls: readonly string[]): Promise<void> {
   const imgs = urls.map((url, i) => {
     const img = document.createElement('img')
     img.src = url
-    img.alt = `Seite ${i + 1}`
+    img.alt = t('common.page', { n: i + 1 })
     root.appendChild(img)
     return img
   })

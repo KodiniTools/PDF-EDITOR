@@ -2,9 +2,11 @@
 import { ref } from 'vue'
 
 import PageThumbnail from '@/components/PageThumbnail.vue'
+import { useI18n } from '@/i18n'
 import { useDocumentStore } from '@/stores/document'
 
 const store = useDocumentStore()
+const { t } = useI18n()
 
 const dragFrom = ref<number | null>(null)
 const dragOver = ref<number | null>(null)
@@ -31,22 +33,22 @@ function onDragEnd(): void {
 </script>
 
 <template>
-  <aside class="pdf-editor-pages" aria-label="Seitenübersicht">
+  <aside class="pdf-editor-pages" :aria-label="t('pages.label')">
     <div class="pdf-pages-header">
       <div class="flex items-baseline justify-between gap-2">
-        <h2>Seiten</h2>
+        <h2>{{ t('pages.title') }}</h2>
         <span>{{ store.pages.length }}</span>
       </div>
-      <p>Ziehen zum Sortieren</p>
+      <p>{{ t('pages.dragHint') }}</p>
       <div class="mt-1 flex items-center justify-between gap-1" data-testid="mark-bar">
-        <span>{{ store.markedPages.length }} markiert</span>
+        <span>{{ t('pages.marked', { n: store.markedPages.length }) }}</span>
         <button
           v-if="store.markedPages.length < store.pages.length"
           type="button"
           class="pdf-pages-link"
           @click="store.setAllMarked(true)"
         >
-          Alle
+          {{ t('pages.all') }}
         </button>
         <button
           v-if="store.markedPages.length > 0"
@@ -54,7 +56,7 @@ function onDragEnd(): void {
           class="pdf-pages-link"
           @click="store.setAllMarked(false)"
         >
-          Keine
+          {{ t('pages.none') }}
         </button>
       </div>
     </div>

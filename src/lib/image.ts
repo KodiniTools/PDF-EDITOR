@@ -1,4 +1,5 @@
 /** Bilddateien einlesen (Bild einfügen): PNG/JPEG direkt, andere Formate und sehr große Bilder per Canvas. */
+import { t } from '@/i18n'
 
 export const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 /** Längste Seite in Pixeln; größere Fotos werden verkleinert (Speicher, Exportgröße). */
@@ -60,7 +61,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
-    img.onerror = () => reject(new ImageError('Die Datei ist kein lesbares Bild.'))
+    img.onerror = () => reject(new ImageError(t('error.imageUnreadable')))
     img.src = src
   })
 }
@@ -71,9 +72,9 @@ export async function readImageFile(
   maxSide: number = MAX_IMAGE_SIDE,
 ): Promise<LoadedImage> {
   if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
-    throw new ImageError('Nur PNG, JPEG, WebP oder GIF werden unterstützt.')
+    throw new ImageError(t('error.imageTypeUnsupported'))
   }
-  if (file.size > MAX_IMAGE_BYTES) throw new ImageError('Das Bild ist zu groß (max. 20 MB).')
+  if (file.size > MAX_IMAGE_BYTES) throw new ImageError(t('error.imageTooLarge'))
   const source = await readAsDataUrl(file)
   const img = await loadImage(source)
   const natural = { width: img.naturalWidth || 1, height: img.naturalHeight || 1 }
@@ -87,7 +88,7 @@ export async function readImageFile(
   canvas.width = size.width
   canvas.height = size.height
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new ImageError('Das Bild konnte nicht verarbeitet werden.')
+  if (!ctx) throw new ImageError(t('error.imageProcessFailed'))
   ctx.drawImage(img, 0, 0, size.width, size.height)
   const dataUrl =
     file.type === 'image/jpeg' ? canvas.toDataURL('image/jpeg', 0.9) : canvas.toDataURL('image/png')

@@ -11,6 +11,7 @@ import {
   TEXT_BASELINE_RATIO,
 } from '@/lib/geometry'
 import type { TextLine } from '@/lib/textLines'
+import { t } from '@/i18n'
 import { createId } from '@/lib/id'
 import { createUndoHistory } from '@/lib/undoHistory'
 import { exportPdf, PdfEditorError, validatePdf } from '@/services/pdfExport'
@@ -41,7 +42,7 @@ export interface AddFilesResult {
 function messageOf(err: unknown): string {
   if (err instanceof PdfEditorError) return err.message
   if (err instanceof Error && err.name === 'ImageError') return err.message
-  return 'Unbekannter Fehler beim Verarbeiten der Datei.'
+  return t('error.unknown')
 }
 
 export const useDocumentStore = defineStore('document', () => {
@@ -84,8 +85,8 @@ export const useDocumentStore = defineStore('document', () => {
     // Nur Quellen, die aktuell verwendet werden (nicht nur im Undo-Verlauf).
     const used = new Set(pages.value.map((p) => p.sourceId))
     const active = sources.value.filter((s) => used.has(s.id))
-    const first = active[0]?.name.replace(/\.(pdf|jpe?g|png|webp|gif)$/i, '') ?? 'dokument'
-    return `${first}${active.length > 1 ? '-zusammengefuehrt' : '-bearbeitet'}.pdf`
+    const first = active[0]?.name.replace(/\.(pdf|jpe?g|png|webp|gif)$/i, '') ?? t('file.baseName')
+    return `${first}${active.length > 1 ? t('file.suffixMerged') : t('file.suffixEdited')}.pdf`
   })
 
   // ---- Undo/Redo ------------------------------------------------------------
@@ -151,17 +152,17 @@ export const useDocumentStore = defineStore('document', () => {
     error.value = null
     try {
       for (const file of files) {
-        const label = file.name || 'Datei'
+        const label = file.name || t('file.fallbackLabel')
         try {
           if (file.size > MAX_FILE_BYTES) {
-            throw new PdfEditorError('Datei ist zu groß (max. 100 MB).')
+            throw new PdfEditorError(t('error.fileTooLarge'))
           }
           let bytes = await readFileBytes(file)
           if (!looksLikePdf(bytes)) {
             // Scan/Foto: als A4-Seite übernehmen.
             const type = imageTypeOf(file)
             if (!looksLikeImage(type, bytes)) {
-              throw new PdfEditorError('Keine PDF- oder Bilddatei.')
+              throw new PdfEditorError(t('error.notPdfOrImage'))
             }
             const typed = file.type ? file : new File([bytes as BlobPart], label, { type })
             bytes = await imageToPdf(await readImageFile(typed, SCAN_MAX_SIDE))
@@ -172,7 +173,7 @@ export const useDocumentStore = defineStore('document', () => {
           const infos = await openDocument(id, bytes)
           if (infos.length === 0) {
             await closeDocument(id)
-            throw new PdfEditorError('Die PDF enthält keine Seiten.')
+            throw new PdfEditorError(t('error.noPages'))
           }
           sourceBytes.set(id, bytes)
           sources.value.push({ id, name: label, pageCount: infos.length })
@@ -364,7 +365,7 @@ export const useDocumentStore = defineStore('document', () => {
       return await exportPdf(sourceBytes, exportPages)
     } catch (err) {
       console.error('[pdf-editor] Export fehlgeschlagen', err)
-      error.value = `Export fehlgeschlagen: ${messageOf(err)}`
+      error.value = t('error.exportFailed', { message: messageOf(err) })
       throw err
     } finally {
       busy.value = false

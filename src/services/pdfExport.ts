@@ -9,6 +9,7 @@ import {
   type PDFPage,
 } from 'pdf-lib'
 
+import { t } from '@/i18n'
 import { hexToRgb } from '@/lib/color'
 import {
   displayToPdf,
@@ -46,12 +47,9 @@ export async function validatePdf(bytes: Uint8Array): Promise<void> {
     await PDFDocument.load(bytes, { updateMetadata: false })
   } catch (err) {
     if (err instanceof EncryptedPDFError) {
-      throw new PdfEditorError(
-        'Die PDF ist verschlüsselt bzw. geschützt und kann nicht bearbeitet werden.',
-        { cause: err },
-      )
+      throw new PdfEditorError(t('error.pdfEncrypted'), { cause: err })
     }
-    throw new PdfEditorError('Die Datei ist keine gültige PDF oder beschädigt.', { cause: err })
+    throw new PdfEditorError(t('error.pdfInvalid'), { cause: err })
   }
 }
 
@@ -72,7 +70,7 @@ export function sanitizeForFont(text: string, font: PDFFont): string {
 function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; type: 'png' | 'jpg' } {
   const m = /^data:image\/(png|jpe?g);base64,(.+)$/i.exec(dataUrl)
   if (!m?.[1] || !m[2]) {
-    throw new PdfEditorError('Bildformat nicht unterstützt (nur PNG oder JPEG).')
+    throw new PdfEditorError(t('error.imageFormatExport'))
   }
   const bin = atob(m[2])
   const bytes = new Uint8Array(bin.length)
@@ -204,7 +202,7 @@ export async function exportPdf(
   options: ExportOptions = {},
 ): Promise<Uint8Array> {
   if (pages.length === 0) {
-    throw new PdfEditorError('Es gibt keine Seiten zum Exportieren.')
+    throw new PdfEditorError(t('error.nothingToExport'))
   }
 
   const out = await PDFDocument.create()
@@ -245,12 +243,12 @@ export async function exportPdf(
   }
   for (const [sourceId, refs] of bySource) {
     const bytes = sources.get(sourceId)
-    if (!bytes) throw new PdfEditorError(`Quelldatei fehlt (${sourceId}).`)
+    if (!bytes) throw new PdfEditorError(t('error.sourceMissing', { id: sourceId }))
     let src: PDFDocument
     try {
       src = await PDFDocument.load(bytes, { updateMetadata: false })
     } catch (err) {
-      throw new PdfEditorError('Eine Quelldatei konnte nicht gelesen werden.', { cause: err })
+      throw new PdfEditorError(t('error.sourceUnreadable'), { cause: err })
     }
     const result = await out.copyPages(
       src,
@@ -264,7 +262,7 @@ export async function exportPdf(
 
   for (const ref of pages) {
     const page = copied.get(ref)
-    if (!page) throw new PdfEditorError('Seite konnte nicht kopiert werden.')
+    if (!page) throw new PdfEditorError(t('error.pageCopyFailed'))
     out.addPage(page)
     const total = normalizeRotation(ref.baseRotation + ref.rotation)
     page.setRotation(degrees(total))

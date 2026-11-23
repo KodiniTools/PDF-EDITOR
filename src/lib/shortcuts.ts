@@ -3,6 +3,7 @@
  * Die Kürzel selbst werden dort behandelt, wo die Aktion lebt (EditorView,
  * Dialoge, privater Build in src/private/shortcuts.ts).
  */
+import { keyName, t } from '@/i18n'
 
 export interface ShortcutInfo {
   /** Alternativen, z. B. ['Strg+O', 'O']. */
@@ -37,68 +38,75 @@ export function isPlainKey(e: KeyboardEvent): boolean {
   return !isMod(e) && !e.altKey && !isTypingTarget(e.target) && !modalOpen()
 }
 
-export const CORE_SHORTCUTS: ShortcutGroup[] = [
-  {
-    title: 'Datei',
-    items: [
-      { keys: ['Strg+O', 'O'], label: 'PDF öffnen bzw. hinzufügen' },
-      { keys: ['F'], label: 'Scan / Foto als Seite übernehmen' },
-      { keys: ['Strg+S'], label: 'Exportieren (Seitenauswahl im Dialog)' },
-      { keys: ['Strg+P', 'P'], label: 'Drucken (Seitenauswahl im Dialog)' },
-    ],
-  },
-  {
-    title: 'Werkzeuge',
-    items: [
-      { keys: ['V'], label: 'Verschieben (Elemente auswählen)' },
-      { keys: ['E'], label: 'Text bearbeiten' },
-      { keys: ['T'], label: 'Text einfügen' },
-      { keys: ['H'], label: 'Markieren' },
-      { keys: ['A'], label: 'Abdecken' },
-      { keys: ['S'], label: 'Signatur' },
-      { keys: ['Umschalt+S'], label: 'Signatur neu zeichnen' },
-      { keys: ['B'], label: 'Bild einfügen' },
-    ],
-  },
-  {
-    title: 'Ausgewähltes Element',
-    items: [
-      { keys: ['←', '↑', '→', '↓'], label: 'um 1 pt verschieben' },
-      { keys: ['Umschalt+Pfeil'], label: 'um 10 pt verschieben' },
-      { keys: ['Strg+D'], label: 'duplizieren' },
-      { keys: ['Entf', '⌫'], label: 'löschen' },
-      { keys: ['Esc'], label: 'Auswahl aufheben' },
-    ],
-  },
-  {
-    title: 'Seiten',
-    items: [
-      { keys: ['↑', '↓', 'Bild↑', 'Bild↓'], label: 'vorherige / nächste Seite' },
-      { keys: ['Pos1', 'Ende'], label: 'erste / letzte Seite' },
-      { keys: ['Alt+↑', 'Alt+↓'], label: 'Seite nach oben / unten verschieben' },
-      { keys: ['Umschalt+L', 'Umschalt+R'], label: 'Seite nach links / rechts drehen' },
-      { keys: ['Umschalt+Entf'], label: 'Seite löschen' },
-      { keys: ['M'], label: 'Seite für Export/Druck markieren oder Markierung aufheben' },
-      { keys: ['Strg+A'], label: 'alle Seiten markieren' },
-      { keys: ['Strg+Umschalt+A'], label: 'Markierung aller Seiten aufheben' },
-    ],
-  },
-  {
-    title: 'Bearbeiten und Ansicht',
-    items: [
-      { keys: ['Strg+Z'], label: 'Rückgängig' },
-      { keys: ['Strg+Y', 'Strg+Umschalt+Z'], label: 'Wiederholen' },
-      { keys: ['+', '−'], label: 'Vergrößern / Verkleinern' },
-      { keys: ['0'], label: 'Zoom 100 %' },
-      { keys: ['?', 'F1'], label: 'diese Übersicht' },
-    ],
-  },
-  {
-    title: 'Dialog Export / Drucken',
-    items: [
-      { keys: ['1', '2', '3'], label: 'alle / markierte / aktuelle Seite' },
-      { keys: ['Enter'], label: 'exportieren bzw. drucken' },
-      { keys: ['Esc'], label: 'schließen' },
-    ],
-  },
-]
+/**
+ * Kürzel-Übersicht der öffentlichen Funktionen in der aktuellen Sprache.
+ * In einem `computed` aufrufen, dann folgt die Liste dem Sprachwechsel.
+ */
+export function coreShortcuts(): ShortcutGroup[] {
+  const keys = (...names: string[]): string[] => names.map(keyName)
+  return [
+    {
+      title: t('shortcuts.file'),
+      items: [
+        { keys: keys('Strg+O', 'O'), label: t('shortcuts.file.open') },
+        { keys: keys('F'), label: t('shortcuts.file.scan') },
+        { keys: keys('Strg+S'), label: t('shortcuts.file.export') },
+        { keys: keys('Strg+P', 'P'), label: t('shortcuts.file.print') },
+      ],
+    },
+    {
+      title: t('shortcuts.tools'),
+      items: [
+        { keys: keys('V'), label: t('shortcuts.tools.select') },
+        { keys: keys('E'), label: t('shortcuts.tools.editText') },
+        { keys: keys('T'), label: t('shortcuts.tools.text') },
+        { keys: keys('H'), label: t('shortcuts.tools.highlight') },
+        { keys: keys('A'), label: t('shortcuts.tools.cover') },
+        { keys: keys('S'), label: t('shortcuts.tools.signature') },
+        { keys: keys('Umschalt+S'), label: t('shortcuts.tools.signatureNew') },
+        { keys: keys('B'), label: t('shortcuts.tools.image') },
+      ],
+    },
+    {
+      title: t('shortcuts.selection'),
+      items: [
+        { keys: keys('←', '↑', '→', '↓'), label: t('shortcuts.selection.nudge') },
+        { keys: keys('Umschalt+Pfeil'), label: t('shortcuts.selection.nudgeBig') },
+        { keys: keys('Strg+D'), label: t('shortcuts.selection.duplicate') },
+        { keys: keys('Entf', '⌫'), label: t('shortcuts.selection.delete') },
+        { keys: keys('Esc'), label: t('shortcuts.selection.deselect') },
+      ],
+    },
+    {
+      title: t('shortcuts.pages'),
+      items: [
+        { keys: keys('↑', '↓', 'Bild↑', 'Bild↓'), label: t('shortcuts.pages.prevNext') },
+        { keys: keys('Pos1', 'Ende'), label: t('shortcuts.pages.firstLast') },
+        { keys: keys('Alt+↑', 'Alt+↓'), label: t('shortcuts.pages.move') },
+        { keys: keys('Umschalt+L', 'Umschalt+R'), label: t('shortcuts.pages.rotate') },
+        { keys: keys('Umschalt+Entf'), label: t('shortcuts.pages.remove') },
+        { keys: keys('M'), label: t('shortcuts.pages.mark') },
+        { keys: keys('Strg+A'), label: t('shortcuts.pages.markAll') },
+        { keys: keys('Strg+Umschalt+A'), label: t('shortcuts.pages.unmarkAll') },
+      ],
+    },
+    {
+      title: t('shortcuts.edit'),
+      items: [
+        { keys: keys('Strg+Z'), label: t('shortcuts.edit.undo') },
+        { keys: keys('Strg+Y', 'Strg+Umschalt+Z'), label: t('shortcuts.edit.redo') },
+        { keys: keys('+', '−'), label: t('shortcuts.edit.zoom') },
+        { keys: keys('0'), label: t('shortcuts.edit.zoomReset') },
+        { keys: keys('?', 'F1'), label: t('shortcuts.edit.help') },
+      ],
+    },
+    {
+      title: t('shortcuts.dialog'),
+      items: [
+        { keys: keys('1', '2', '3'), label: t('shortcuts.dialog.scope') },
+        { keys: keys('Enter'), label: t('shortcuts.dialog.confirm') },
+        { keys: keys('Esc'), label: t('shortcuts.dialog.close') },
+      ],
+    },
+  ]
+}

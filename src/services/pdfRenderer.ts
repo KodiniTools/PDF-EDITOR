@@ -6,6 +6,7 @@ import {
 } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
+import { t } from '@/i18n'
 import { normalizeRotation } from '@/lib/geometry'
 import { buildTextLines, type Matrix, type RawTextItem, type TextLine } from '@/lib/textLines'
 import { PdfEditorError } from '@/services/pdfExport'
@@ -31,9 +32,9 @@ export async function openDocument(id: string, bytes: Uint8Array): Promise<PageI
   } catch (err) {
     const name = err instanceof Error ? err.name : ''
     if (name === 'PasswordException') {
-      throw new PdfEditorError('Die PDF ist passwortgeschützt.', { cause: err })
+      throw new PdfEditorError(t('error.pdfPassword'), { cause: err })
     }
-    throw new PdfEditorError('Die PDF konnte nicht geöffnet werden.', { cause: err })
+    throw new PdfEditorError(t('error.pdfOpenFailed'), { cause: err })
   }
   documents.set(id, doc)
 
@@ -74,7 +75,7 @@ export interface RenderOptions {
  */
 export async function renderPage(canvas: HTMLCanvasElement, opts: RenderOptions): Promise<void> {
   const doc = documents.get(opts.sourceId)
-  if (!doc) throw new PdfEditorError('Dokument ist nicht geöffnet.')
+  if (!doc) throw new PdfEditorError(t('error.documentNotOpen'))
   if (opts.signal?.aborted) return
 
   const page = await doc.getPage(opts.pageIndex + 1)
@@ -118,7 +119,7 @@ export function getTextLines(
 
   const promise = (async () => {
     const doc = documents.get(sourceId)
-    if (!doc) throw new PdfEditorError('Dokument ist nicht geöffnet.')
+    if (!doc) throw new PdfEditorError(t('error.documentNotOpen'))
     const page = await doc.getPage(pageIndex + 1)
     const viewport = page.getViewport({ scale: 1, rotation })
     const content = await page.getTextContent()
@@ -166,7 +167,7 @@ export interface RawFormField {
 /** Liest die Formularfelder (Widgets) einer Seite. Wird nur im privaten Build genutzt. */
 export async function getFormFields(sourceId: string, pageIndex: number): Promise<RawFormField[]> {
   const doc = documents.get(sourceId)
-  if (!doc) throw new PdfEditorError('Dokument ist nicht geöffnet.')
+  if (!doc) throw new PdfEditorError(t('error.documentNotOpen'))
   const page = await doc.getPage(pageIndex + 1)
   const annotations = (await page.getAnnotations({ intent: 'display' })) as Record<
     string,

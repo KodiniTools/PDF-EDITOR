@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref } from 'vue'
 
+import { useI18n } from '@/i18n'
 import { IMAGE_ACCEPT, readImageFile } from '@/lib/image'
 import { useDocumentStore } from '@/stores/document'
 import type { FontFamily, Tool } from '@/types/pdf'
@@ -14,6 +15,7 @@ const emit = defineEmits<{
 }>()
 
 const store = useDocumentStore()
+const { t } = useI18n()
 const isPrivate = __PRIVATE__
 /** „Neues Dokument“ + KI-Modellauswahl – nur im privaten Build. */
 const PrivateToolbar = __PRIVATE__
@@ -36,37 +38,28 @@ async function onImageChange(e: Event): Promise<void> {
   } catch (err) {
     console.error('[pdf-editor] Bild', err)
     store.error =
-      err instanceof Error && err.name === 'ImageError'
-        ? err.message
-        : 'Das Bild konnte nicht eingefügt werden.'
+      err instanceof Error && err.name === 'ImageError' ? err.message : t('error.imageInsertFailed')
   }
 }
 
 const deleteLabel = computed(() => {
   switch (store.selectedAnnotation?.kind) {
     case 'image':
-      return 'Bild löschen'
+      return t('toolbar.deleteImage')
     case 'text':
-      return 'Text löschen'
+      return t('toolbar.deleteText')
     default:
-      return 'Löschen'
+      return t('toolbar.delete')
   }
 })
 
-const tools: { id: Tool; label: string; hint: string }[] = [
-  {
-    id: 'select',
-    label: 'Verschieben',
-    hint: 'Eingefügte Elemente (Text, Bild, Signatur, Markierung, Abdeckung) anklicken, um sie zu verschieben, in der Größe zu ändern oder zu löschen (V)',
-  },
-  {
-    id: 'edit-text',
-    label: 'Text bearbeiten',
-    hint: 'Vorhandene Textzeile anklicken, um sie zu ändern (E)',
-  },
-  { id: 'text', label: 'Text', hint: 'Klicken, um Text einzufügen (T)' },
-  { id: 'highlight', label: 'Markieren', hint: 'Bereich aufziehen (H)' },
-  { id: 'cover', label: 'Abdecken', hint: 'Bereich weiß/schwarz abdecken (A)' },
+/** Werkzeuge in der aktuellen Sprache (`computed`: folgt dem Sprachwechsel). */
+const tools = computed<{ id: Tool; label: string; hint: string }[]>(() => [
+  { id: 'select', label: t('tool.select'), hint: t('tool.selectHint') },
+  { id: 'edit-text', label: t('tool.editText'), hint: t('tool.editTextHint') },
+  { id: 'text', label: t('tool.text'), hint: t('tool.textHint') },
+  { id: 'highlight', label: t('tool.highlight'), hint: t('tool.highlightHint') },
+  { id: 'cover', label: t('tool.cover'), hint: t('tool.coverHint') },
   ...(__PRIVATE__
     ? [
         {
@@ -76,12 +69,8 @@ const tools: { id: Tool; label: string; hint: string }[] = [
         },
       ]
     : []),
-  {
-    id: 'signature',
-    label: 'Signatur',
-    hint: 'Klicken, um Signatur zu platzieren (S); neu zeichnen mit Umschalt+S',
-  },
-]
+  { id: 'signature', label: t('tool.signature'), hint: t('tool.signatureHint') },
+])
 
 /** Ausgewählte Textannotation, deren Größe/Farbe in der Toolbar geändert wird. */
 const selectedText = computed(() => {
@@ -194,10 +183,10 @@ const redactPresets = [
   { color: '#808080', label: 'Grau' },
 ]
 
-const coverPresets = [
-  { color: '#ffffff', label: 'Weiß' },
-  { color: '#000000', label: 'Schwarz' },
-]
+const coverPresets = computed(() => [
+  { color: '#ffffff', label: t('toolbar.white') },
+  { color: '#000000', label: t('toolbar.black') },
+])
 
 /** Für Tastenkürzel (EditorView): Dateiauswahl öffnen. */
 defineExpose({
@@ -228,21 +217,21 @@ function chooseTool(id: Tool): void {
     <button
       type="button"
       class="tb-btn tb-primary"
-      title="PDF öffnen, auch mehrere zum Zusammenführen (Strg+O oder O)"
+      :title="t('toolbar.openHint')"
       :disabled="store.busy"
       @click="fileInput?.click()"
     >
-      {{ store.hasDocument ? 'PDF hinzufügen' : 'PDF öffnen' }}
+      {{ store.hasDocument ? t('toolbar.add') : t('toolbar.open') }}
     </button>
     <button
       type="button"
       class="tb-btn"
-      title="Scan oder Foto (JPEG, PNG, WebP, GIF) als neue Seite übernehmen. Auf Handy/Tablet öffnet sich die Kamera. (F)"
+      :title="t('toolbar.scanHint')"
       :disabled="store.busy"
       data-testid="scan-button"
       @click="scanInput?.click()"
     >
-      Scan / Foto
+      {{ t('toolbar.scan') }}
     </button>
     <input
       ref="scanInput"
@@ -266,29 +255,29 @@ function chooseTool(id: Tool): void {
     <component :is="PrivateToolbar" v-if="PrivateToolbar" />
 
     <div v-if="store.hasDocument" class="flex flex-wrap items-center gap-2">
-      <div class="pdf-tool-group" role="group" aria-label="Werkzeuge">
+      <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.tools')">
         <button
-          v-for="t in tools"
-          :key="t.id"
+          v-for="item in tools"
+          :key="item.id"
           type="button"
           class="pdf-tool-button"
-          :title="t.hint"
-          :aria-pressed="store.tool === t.id"
-          @click="chooseTool(t.id)"
+          :title="item.hint"
+          :aria-pressed="store.tool === item.id"
+          @click="chooseTool(item.id)"
         >
-          {{ t.label }}
+          {{ item.label }}
         </button>
       </div>
 
       <button
         type="button"
         class="tb-btn"
-        title="Bild (PNG, JPEG, WebP, GIF) auf der aktuellen Seite einfügen (B)"
+        :title="t('toolbar.imageHint')"
         :disabled="store.busy"
         data-testid="insert-image"
         @click="imageInput?.click()"
       >
-        Bild
+        {{ t('toolbar.image') }}
       </button>
       <input
         ref="imageInput"
@@ -302,7 +291,7 @@ function chooseTool(id: Tool): void {
         v-if="store.selectedAnnotation"
         type="button"
         class="tb-btn pdf-control-error"
-        title="Ausgewähltes Element löschen (Entf). Pfeiltasten verschieben, Strg+D dupliziert."
+        :title="t('toolbar.deleteHint')"
         data-testid="delete-annotation"
         @click="store.removeSelectedAnnotation()"
       >
@@ -313,10 +302,10 @@ function chooseTool(id: Tool): void {
       <label
         v-if="selectedText"
         class="flex items-center gap-1 text-sm"
-        title="Ausgewählter Text"
+        :title="t('toolbar.selectedText')"
         data-text-style-controls
       >
-        Auswahl: Größe
+        {{ t('toolbar.selectionSize') }}
         <input
           v-model.lazy.number="selectedFontSize"
           type="number"
@@ -329,14 +318,21 @@ function chooseTool(id: Tool): void {
         <select
           v-model="selectedFont"
           class="rounded border pdf-control-border px-1 py-0.5"
-          title="Schrift der Auswahl"
+          :title="t('toolbar.selectionFont')"
+          data-testid="selected-font"
         >
           <option v-for="f in fontOptions" :key="f.value" :value="f.value">{{ f.label }}</option>
         </select>
-        <input v-model="selectedColor" type="color" class="h-7 w-8" title="Textfarbe der Auswahl" />
+        <input
+          v-model="selectedColor"
+          type="color"
+          class="h-7 w-8"
+          :title="t('toolbar.selectionTextColor')"
+          data-testid="selected-text-color"
+        />
       </label>
       <label v-else-if="store.tool === 'text'" class="flex items-center gap-1 text-sm">
-        Größe
+        {{ t('toolbar.size') }}
         <input
           v-model.number="store.fontSize"
           type="number"
@@ -344,25 +340,32 @@ function chooseTool(id: Tool): void {
           max="96"
           class="w-16 rounded border pdf-control-border px-1 py-0.5"
         />
-        <input v-model="store.textColor" type="color" class="h-7 w-8" title="Textfarbe" />
+        <input
+          v-model="store.textColor"
+          type="color"
+          class="h-7 w-8"
+          :title="t('toolbar.textColor')"
+        />
       </label>
       <label
         v-if="store.tool === 'highlight' || selectedHighlight"
         class="flex items-center gap-1 text-sm"
       >
-        {{ selectedHighlight ? 'Auswahl: Farbe' : 'Farbe' }}
+        {{ selectedHighlight ? t('toolbar.selectionColor') : t('toolbar.color') }}
         <input
           v-model="highlightColor"
           type="color"
           class="h-7 w-8"
-          :title="selectedHighlight ? 'Farbe der ausgewählten Markierung' : 'Markierfarbe'"
+          :title="
+            selectedHighlight ? t('toolbar.selectedHighlightColor') : t('toolbar.highlightColor')
+          "
           data-testid="highlight-color"
         />
       </label>
       <div
         v-if="store.tool === 'cover'"
         class="flex items-center gap-1 text-sm"
-        title="Deckt nur optisch ab: der Inhalt darunter bleibt in der PDF auslesbar."
+        :title="t('toolbar.coverHint')"
       >
         <button
           v-for="p in coverPresets"
@@ -374,8 +377,13 @@ function chooseTool(id: Tool): void {
         >
           {{ p.label }}
         </button>
-        <input v-model="store.coverColor" type="color" class="h-7 w-8" title="Abdeckfarbe" />
-        <span class="text-xs pdf-control-warning">nur optisch</span>
+        <input
+          v-model="store.coverColor"
+          type="color"
+          class="h-7 w-8"
+          :title="t('toolbar.coverColor')"
+        />
+        <span class="text-xs pdf-control-warning">{{ t('toolbar.coverNote') }}</span>
       </div>
       <div
         v-if="isPrivate && (store.tool === 'redact' || selectedRedaction)"
@@ -400,18 +408,18 @@ function chooseTool(id: Tool): void {
         v-if="store.tool === 'signature'"
         type="button"
         class="tb-btn"
-        title="Signatur neu zeichnen (Umschalt+S)"
+        :title="t('toolbar.signatureNewHint')"
         @click="emit('editSignature')"
       >
-        Signatur neu
+        {{ t('toolbar.signatureNew') }}
       </button>
 
-      <div class="flex items-center gap-1 text-sm" role="group" aria-label="Verlauf">
+      <div class="flex items-center gap-1 text-sm" role="group" :aria-label="t('toolbar.history')">
         <button
           type="button"
           class="tb-btn"
-          title="Rückgängig (Strg+Z)"
-          aria-label="Rückgängig"
+          :title="t('toolbar.undoHint')"
+          :aria-label="t('toolbar.undo')"
           :disabled="!store.canUndo || store.busy"
           data-testid="undo"
           @click="store.undo()"
@@ -421,8 +429,8 @@ function chooseTool(id: Tool): void {
         <button
           type="button"
           class="tb-btn"
-          title="Wiederholen (Strg+Y / Strg+Umschalt+Z)"
-          aria-label="Wiederholen"
+          :title="t('toolbar.redoHint')"
+          :aria-label="t('toolbar.redo')"
           :disabled="!store.canRedo || store.busy"
           data-testid="redo"
           @click="store.redo()"
@@ -435,7 +443,7 @@ function chooseTool(id: Tool): void {
         <button
           type="button"
           class="tb-btn"
-          title="Verkleinern (−)"
+          :title="t('toolbar.zoomOutHint')"
           @click="store.setZoom(store.zoom - 0.25)"
         >
           −
@@ -444,7 +452,7 @@ function chooseTool(id: Tool): void {
         <button
           type="button"
           class="tb-btn"
-          title="Vergrößern (+), 100 % mit 0"
+          :title="t('toolbar.zoomInHint')"
           @click="store.setZoom(store.zoom + 0.25)"
         >
           +
@@ -456,8 +464,8 @@ function chooseTool(id: Tool): void {
       <button
         type="button"
         class="tb-btn"
-        title="Tastenkürzel anzeigen (? oder F1)"
-        aria-label="Tastenkürzel"
+        :title="t('toolbar.shortcutsHint')"
+        :aria-label="t('toolbar.shortcuts')"
         data-testid="shortcut-help-button"
         @click="emit('help')"
       >
@@ -470,28 +478,28 @@ function chooseTool(id: Tool): void {
         :disabled="store.busy"
         @click="store.reset()"
       >
-        Schließen
+        {{ t('common.close') }}
       </button>
       <button
         v-if="store.hasDocument"
         type="button"
         class="tb-btn"
-        title="Drucken (Strg+P oder P)"
+        :title="t('toolbar.printHint')"
         :disabled="store.busy"
         data-testid="print"
         @click="emit('print')"
       >
-        Drucken
+        {{ t('toolbar.print') }}
       </button>
       <button
         v-if="store.hasDocument"
         type="button"
         class="tb-btn tb-primary"
-        title="Exportieren (Strg+S)"
+        :title="t('toolbar.exportHint')"
         :disabled="store.busy"
         @click="emit('export')"
       >
-        {{ store.busy ? 'Bitte warten…' : 'Exportieren' }}
+        {{ store.busy ? t('toolbar.wait') : t('toolbar.export') }}
       </button>
     </div>
   </div>

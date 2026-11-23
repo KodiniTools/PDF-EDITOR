@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 
+import { t } from '@/i18n'
 import { renderPage } from '@/services/pdfRenderer'
 import type { Rotation } from '@/types/pdf'
 
@@ -37,7 +38,7 @@ function scheduleRender(): void {
         })
       } catch (err) {
         console.error('[pdf-editor] Rendern fehlgeschlagen', err)
-        emit('error', 'Seite konnte nicht angezeigt werden.')
+        emit('error', t('error.renderFailed'))
       }
     })
 }

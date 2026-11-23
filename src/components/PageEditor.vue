@@ -10,6 +10,7 @@ import {
 } from 'vue'
 
 import PdfPageCanvas from '@/components/PdfPageCanvas.vue'
+import { useI18n } from '@/i18n'
 import { HIGHLIGHT_OPACITY } from '@/services/pdfExport'
 import { displaySize, normalizeRotation, TEXT_LINE_HEIGHT } from '@/lib/geometry'
 import type { TextLine } from '@/lib/textLines'
@@ -21,6 +22,7 @@ const props = defineProps<{ page: PageRef }>()
 const emit = defineEmits<{ requestSignature: [] }>()
 
 const store = useDocumentStore()
+const { t } = useI18n()
 
 const MIN_SIZE = 4
 /** Bildschirmschriften passend zu den PDF-Standardschriften im Export. */
@@ -173,7 +175,7 @@ async function placeSignature(at: { x: number; y: number }): Promise<void> {
     store.setTool('select')
   } catch (err) {
     console.error('[pdf-editor] Signatur', err)
-    store.error = 'Signatur konnte nicht eingefügt werden.'
+    store.error = t('error.signatureFailed')
   }
 }
 
@@ -501,7 +503,7 @@ function px(v: number): string {
             width: px(line.width + 2),
             height: px(line.height + 2),
           }"
-          :title="`Bearbeiten: ${line.text}`"
+          :title="t('editor.editLine', { text: line.text })"
           data-testid="text-line"
           @pointerdown="onLinePointerDown($event, line)"
         />
@@ -567,7 +569,7 @@ function px(v: number): string {
         >
           <img
             :src="a.dataUrl"
-            alt="Bild"
+            :alt="t('editor.imageAlt')"
             class="pointer-events-none h-full w-full"
             draggable="false"
           />
@@ -598,7 +600,7 @@ function px(v: number): string {
             :value="a.text"
             class="block resize-none overflow-hidden border-0 bg-white/70 p-0 outline-none [field-sizing:content]"
             :style="{ minWidth: '6em', font: 'inherit', color: 'inherit', lineHeight: 'inherit' }"
-            aria-label="Annotationstext"
+            :aria-label="t('editor.annotationText')"
             @input="onTextInput(a, $event)"
             @blur="finishTextEdit(a, $event)"
             @keydown.esc="($event.target as HTMLTextAreaElement).blur()"
@@ -613,8 +615,8 @@ function px(v: number): string {
           type="button"
           class="absolute z-10 grid h-5 w-5 place-items-center rounded-full border border-white bg-red-600 text-xs leading-none text-white shadow hover:bg-red-700"
           :style="deleteHandleStyle(a)"
-          title="Löschen (Entf)"
-          aria-label="Auswahl löschen"
+          :title="t('editor.deleteHint')"
+          :aria-label="t('editor.deleteSelection')"
           data-testid="annotation-delete"
           @pointerdown.stop
           @click.stop="store.removeAnnotation(page.id, a.id)"
@@ -630,7 +632,7 @@ function px(v: number): string {
             left: `calc(${px(a.x + a.width)} - 6px)`,
             top: `calc(${px(a.y + a.height)} - 6px)`,
           }"
-          title="Größe ändern"
+          :title="t('editor.resize')"
           @pointerdown="onAnnotationPointerDown($event, a, 'resize')"
         />
       </template>
