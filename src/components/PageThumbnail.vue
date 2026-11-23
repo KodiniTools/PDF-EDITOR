@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import PdfPageCanvas from '@/components/PdfPageCanvas.vue'
 import { useVisibleOnce } from '@/composables/useVisibility'
+import { useI18n } from '@/i18n'
 import { displaySize, normalizeRotation } from '@/lib/geometry'
 import type { PageRef } from '@/types/pdf'
 
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   toggleMark: []
 }>()
 
+const { t } = useI18n()
 const root = ref<HTMLElement | null>(null)
 const visible = useVisibleOnce(root)
 
@@ -47,7 +49,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         width: `${THUMB_WIDTH}px`,
         minHeight: `min(${placeholderHeight}px, var(--pdf-thumbnail-max-height))`,
       }"
-      :aria-label="`Seite ${index + 1} auswählen`"
+      :aria-label="t('pages.select', { n: index + 1 })"
       :aria-current="selected ? 'page' : undefined"
       @click="emit('select')"
     >
@@ -61,7 +63,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
       <span
         v-if="page.annotations.length > 0"
         class="pdf-thumbnail-annotations"
-        :title="`${page.annotations.length} Annotation(en)`"
+        :title="t('pages.annotations', { n: page.annotations.length })"
       >
         {{ page.annotations.length }}
       </span>
@@ -69,15 +71,13 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
     <div class="pdf-thumbnail-controls">
       <label
         class="flex cursor-pointer items-center gap-1 font-medium"
-        :title="
-          marked ? 'Markierung aufheben (M)' : 'Seite für Export/Druck markieren (M, alle: Strg+A)'
-        "
+        :title="marked ? t('pages.unmarkHint') : t('pages.markHint')"
       >
         <input
           type="checkbox"
           class="h-3.5 w-3.5"
           :checked="marked"
-          :aria-label="`Seite ${index + 1} markieren`"
+          :aria-label="t('pages.markLabel', { n: index + 1 })"
           data-testid="page-mark"
           @change="emit('toggleMark')"
         />
@@ -87,7 +87,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         <button
           type="button"
           class="thumb-btn"
-          title="Nach oben (Alt+↑)"
+          :title="t('pages.moveUpHint')"
           :disabled="index === 0"
           @click="emit('move', index - 1)"
         >
@@ -96,7 +96,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         <button
           type="button"
           class="thumb-btn"
-          title="Nach unten (Alt+↓)"
+          :title="t('pages.moveDownHint')"
           :disabled="index === total - 1"
           @click="emit('move', index + 1)"
         >
@@ -105,7 +105,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         <button
           type="button"
           class="thumb-btn"
-          title="Links drehen (Umschalt+L)"
+          :title="t('pages.rotateLeftHint')"
           @click="emit('rotate', 'ccw')"
         >
           ⟲
@@ -113,7 +113,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         <button
           type="button"
           class="thumb-btn"
-          title="Rechts drehen (Umschalt+R)"
+          :title="t('pages.rotateRightHint')"
           @click="emit('rotate', 'cw')"
         >
           ⟳
@@ -121,7 +121,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
         <button
           type="button"
           class="thumb-btn pdf-control-error"
-          title="Seite löschen (Umschalt+Entf)"
+          :title="t('pages.removeHint')"
           @click="emit('remove')"
         >
           ✕

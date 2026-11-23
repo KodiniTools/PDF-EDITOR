@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 
+import { useI18n } from '@/i18n'
+
 const emit = defineEmits<{ save: [dataUrl: string]; cancel: [] }>()
+const { t } = useI18n()
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
@@ -114,18 +117,18 @@ function onUpload(e: Event): void {
   input.value = ''
   if (!file) return
   if (!['image/png', 'image/jpeg'].includes(file.type)) {
-    uploadError.value = 'Nur PNG oder JPEG.'
+    uploadError.value = t('signature.onlyPngJpeg')
     return
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    uploadError.value = 'Bild ist zu groß (max. 5 MB).'
+    uploadError.value = t('signature.tooLarge')
     return
   }
   const reader = new FileReader()
   reader.onload = () => {
     if (typeof reader.result === 'string') emit('save', reader.result)
   }
-  reader.onerror = () => (uploadError.value = 'Bild konnte nicht gelesen werden.')
+  reader.onerror = () => (uploadError.value = t('signature.unreadable'))
   reader.readAsDataURL(file)
 }
 </script>
@@ -138,9 +141,9 @@ function onUpload(e: Event): void {
     @cancel.prevent="emit('cancel')"
   >
     <div class="space-y-3 p-5">
-      <h2 id="sig-title" class="text-lg font-semibold">Signatur erstellen</h2>
+      <h2 id="sig-title" class="text-lg font-semibold">{{ t('signature.title') }}</h2>
       <p class="text-sm pdf-control-muted">
-        Mit Maus, Stift oder Finger zeichnen – oder ein Bild hochladen.
+        {{ t('signature.intro') }}
       </p>
       <canvas
         ref="canvas"
@@ -154,16 +157,18 @@ function onUpload(e: Event): void {
       <p v-if="uploadError" class="text-sm pdf-control-error">{{ uploadError }}</p>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex gap-2">
-          <button type="button" class="btn" @click="clear">Leeren</button>
+          <button type="button" class="btn" @click="clear">{{ t('signature.clear') }}</button>
           <label class="btn cursor-pointer">
-            Bild hochladen
+            {{ t('signature.upload') }}
             <input type="file" accept="image/png,image/jpeg" class="sr-only" @change="onUpload" />
           </label>
         </div>
         <div class="flex gap-2">
-          <button type="button" class="btn" @click="emit('cancel')">Abbrechen</button>
+          <button type="button" class="btn" @click="emit('cancel')">
+            {{ t('common.cancel') }}
+          </button>
           <button type="button" class="btn btn-primary" :disabled="!hasStrokes" @click="save">
-            Übernehmen
+            {{ t('signature.apply') }}
           </button>
         </div>
       </div>

@@ -1,3 +1,5 @@
+import { t } from '@/i18n'
+
 /** Prüft die PDF-Signatur `%PDF-` in den ersten 1024 Bytes (Header darf versetzt sein). */
 export function looksLikePdf(bytes: Uint8Array): boolean {
   const limit = Math.min(bytes.length - 5, 1024)
@@ -23,7 +25,7 @@ export async function readFileBytes(file: Blob): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer))
-    reader.onerror = () => reject(reader.error ?? new Error('Datei konnte nicht gelesen werden'))
+    reader.onerror = () => reject(reader.error ?? new Error(t('error.fileReadFailed')))
     reader.readAsArrayBuffer(file)
   })
 }

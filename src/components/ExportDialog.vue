@@ -6,6 +6,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import { useI18n } from '@/i18n'
 import { downloadBytes } from '@/lib/file'
 import { formatPageRanges } from '@/lib/pageRanges'
 import { printImages, renderForPrint } from '@/lib/print'
@@ -18,6 +19,7 @@ const emit = defineEmits<{ close: [] }>()
 const printing = ref(false)
 const busy = computed(() => store.busy || printing.value)
 const store = useDocumentStore()
+const { t } = useI18n()
 
 const markedNumbers = computed(() => store.markedPages.map((p) => store.pages.indexOf(p) + 1))
 const scope = ref<Scope>(store.markedPages.length > 0 ? 'marked' : 'all')
@@ -42,14 +44,15 @@ const fileName = computed(() => {
   const base = store.suggestedFileName.replace(/\.pdf$/i, '')
   if (scope.value === 'all') return `${base}.pdf`
   const numbers = scope.value === 'marked' ? markedNumbers.value : [store.selectedPageIndex + 1]
-  return `${base}-seite-${formatPageRanges(numbers).replace(/, /g, '_').replace(/–/g, '-')}.pdf`
+  return `${base}-${t('file.pageSuffix')}-${formatPageRanges(numbers).replace(/, /g, '_').replace(/–/g, '-')}.pdf`
 })
 
 const buttonLabel = computed(() => {
-  if (printing.value || (store.busy && props.mode === 'print')) return 'Bereite Druck vor…'
-  if (store.busy) return 'Exportiere…'
-  const pages = `${count.value} ${count.value === 1 ? 'Seite' : 'Seiten'}`
-  return props.mode === 'print' ? `${pages} drucken` : `${pages} exportieren`
+  if (printing.value || (store.busy && props.mode === 'print')) return t('export.preparingPrint')
+  if (store.busy) return t('export.exporting')
+  const n = count.value
+  if (props.mode === 'print') return t(n === 1 ? 'export.printOne' : 'export.printMany', { n })
+  return t(n === 1 ? 'export.exportOne' : 'export.exportMany', { n })
 })
 
 async function run(): Promise<void> {
@@ -74,7 +77,7 @@ async function run(): Promise<void> {
     await printImages(urls)
   } catch (err) {
     console.error('[pdf-editor] Drucken fehlgeschlagen', err)
-    store.error = 'Drucken fehlgeschlagen. Alternativ exportieren und die PDF drucken.'
+    store.error = t('error.printFailed')
     emit('close')
   } finally {
     printing.value = false
@@ -118,19 +121,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       data-testid="export-dialog"
     >
       <h2 id="export-title" class="text-base font-semibold">
-        {{ mode === 'print' ? 'Drucken' : 'Exportieren' }}
+        {{ mode === 'print' ? t('export.titlePrint') : t('export.titleExport') }}
       </h2>
       <p class="mt-1 pdf-control-muted">
-        Welche Seiten sollen {{ mode === 'print' ? 'gedruckt werden' : 'in die PDF-Datei' }}?
+        {{ mode === 'print' ? t('export.questionPrint') : t('export.questionExport') }}
       </p>
 
       <fieldset class="mt-4 space-y-2">
-        <legend class="sr-only">Seiten</legend>
+        <legend class="sr-only">{{ t('export.legend') }}</legend>
         <label class="flex cursor-pointer items-start gap-2">
           <input v-model="scope" type="radio" value="all" class="mt-0.5" data-testid="export-all" />
-          <span
-            >Alle Seiten <span class="pdf-control-muted">({{ store.pages.length }})</span></span
-          >
+          <span>
+            {{ t('export.all') }}
+            <span class="pdf-control-muted">({{ store.pages.length }})</span>
+          </span>
         </label>
         <label
           class="flex items-start gap-2"
@@ -147,12 +151,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             data-testid="export-marked"
           />
           <span>
-            Nur markierte Seiten
+            {{ t('export.marked') }}
             <span v-if="store.markedPages.length" class="pdf-control-muted">
-              (Seite {{ formatPageRanges(markedNumbers) }})
+              ({{ t('export.pageRef', { pages: formatPageRanges(markedNumbers) }) }})
             </span>
             <span v-else class="block text-xs">
-              Keine markiert. Seiten in der Seitenleiste per Häkchen markieren.
+              {{ t('export.noneMarked') }}
             </span>
           </span>
         </label>
@@ -166,18 +170,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             data-testid="export-current"
           />
           <span>
-            Nur aktuelle Seite
-            <span class="pdf-control-muted">(Seite {{ store.selectedPageIndex + 1 }})</span>
+            {{ t('export.current') }}
+            <span class="pdf-control-muted">
+              ({{ t('export.pageRef', { pages: store.selectedPageIndex + 1 }) }})
+            </span>
           </span>
         </label>
       </fieldset>
 
       <p v-if="mode === 'export'" class="mt-4 text-xs break-all pdf-control-muted">
-        Datei: {{ fileName }}
+        {{ t('export.file', { name: fileName }) }}
       </p>
       <p v-else class="mt-4 text-xs pdf-control-muted">
-        Gedruckt wird mit allen Änderungen. Drucker, Papierformat und Ausrichtung wählst du danach
-        im Druckdialog des Browsers.
+        {{ t('export.printNote') }}
       </p>
 
       <div class="mt-5 flex justify-end gap-2">
@@ -187,7 +192,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           :disabled="busy"
           @click="emit('close')"
         >
-          Abbrechen
+          {{ t('common.cancel') }}
         </button>
         <button
           type="button"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import '@/assets/pdf-editor-layout.css'
 import '@/assets/pdf-editor-header.css'
@@ -13,9 +13,10 @@ import PageEditor from '@/components/PageEditor.vue'
 import PageSidebar from '@/components/PageSidebar.vue'
 import SignatureDialog from '@/components/SignatureDialog.vue'
 import { useAppearance } from '@/composables/useAppearance'
+import { useI18n } from '@/i18n'
 import { displaySize, normalizeRotation } from '@/lib/geometry'
 import {
-  CORE_SHORTCUTS,
+  coreShortcuts,
   isMod,
   isTypingTarget,
   modalOpen,
@@ -30,6 +31,7 @@ const PrivatePanel = __PRIVATE__
   : null
 const isPrivate = __PRIVATE__
 const { appearance, setAppearance } = useAppearance()
+const { t } = useI18n()
 
 const store = useDocumentStore()
 const showSignature = ref(false)
@@ -37,10 +39,14 @@ const showExport = ref(false)
 const showHelp = ref(false)
 const toolbar = ref<InstanceType<typeof AppToolbar> | null>(null)
 /** Kürzel-Übersicht; der private Build ergänzt seine Kürzel (lazy geladen). */
-const shortcutGroups = ref<ShortcutGroup[]>(CORE_SHORTCUTS)
+const privateShortcuts = ref<ShortcutGroup[]>([])
+const shortcutGroups = computed<ShortcutGroup[]>(() => [
+  ...coreShortcuts(),
+  ...privateShortcuts.value,
+])
 if (__PRIVATE__) {
   void import('@/private/shortcuts').then((m) => {
-    shortcutGroups.value = [...CORE_SHORTCUTS, ...m.PRIVATE_SHORTCUTS]
+    privateShortcuts.value = m.PRIVATE_SHORTCUTS
   })
 }
 const outputMode = ref<'export' | 'print'>('export')
@@ -276,13 +282,13 @@ onBeforeUnmount(() => {
     @drop="onDrop"
   >
     <header class="pdf-editor-header">
-      <h1>PDF-Editor <span v-if="isPrivate">privat</span></h1>
+      <h1>{{ t('app.title') }} <span v-if="isPrivate">privat</span></h1>
       <div class="pdf-editor-appearance">
-        <label for="pdf-editor-appearance">Darstellung</label>
+        <label for="pdf-editor-appearance">{{ t('appearance.label') }}</label>
         <select id="pdf-editor-appearance" :value="appearance" @change="setAppearance">
-          <option value="dark">Dunkel</option>
-          <option value="light">Hell</option>
-          <option value="system">System</option>
+          <option value="dark">{{ t('appearance.dark') }}</option>
+          <option value="light">{{ t('appearance.light') }}</option>
+          <option value="system">{{ t('appearance.system') }}</option>
         </select>
       </div>
     </header>
@@ -306,7 +312,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="font-medium"
-        aria-label="Meldung schließen"
+        :aria-label="t('error.dismiss')"
         @click="store.error = null"
       >
         ✕
@@ -316,9 +322,11 @@ onBeforeUnmount(() => {
     <div class="pdf-editor-workspace">
       <PageSidebar v-if="store.hasDocument" />
 
-      <main class="pdf-editor-desk" aria-label="PDF-Arbeitsfläche">
+      <main class="pdf-editor-desk" :aria-label="t('desk.label')">
         <p v-if="store.selectedPage" class="pdf-desk-status">
-          <span>Seite {{ store.selectedPageIndex + 1 }} von {{ store.pages.length }}</span>
+          <span>{{
+            t('desk.status', { n: store.selectedPageIndex + 1, total: store.pages.length })
+          }}</span>
           <span>{{ Math.round(store.zoom * 100) }} %</span>
         </p>
         <div v-if="store.selectedPage" class="pdf-editor-paper-row">
@@ -331,20 +339,22 @@ onBeforeUnmount(() => {
 
         <div v-else class="pdf-editor-empty">
           <div class="pdf-editor-drop-card">
-            <h2>PDF hierher ziehen</h2>
+            <h2>{{ t('drop.title') }}</h2>
             <p class="pdf-editor-drop-description">
-              oder oben „PDF öffnen“ wählen. Mehrere Dateien werden zusammengeführt.
+              {{ t('drop.text') }}
               <template v-if="isPrivate">
                 Die Datei bleibt im Browser; nur für KI-Vorschläge wird Seitentext an Claude
                 gesendet.
               </template>
-              <template v-else>Alles läuft lokal im Browser, nichts wird hochgeladen.</template>
+              <template v-else>{{ t('drop.local') }}</template>
             </p>
-            <p v-if="store.busy" class="pdf-editor-drop-loading">Lade…</p>
+            <p v-if="store.busy" class="pdf-editor-drop-loading">{{ t('drop.loading') }}</p>
           </div>
         </div>
 
-        <div v-if="dropActive" class="pdf-editor-drop-active">Loslassen zum Hinzufügen</div>
+        <div v-if="dropActive" class="pdf-editor-drop-active">
+          {{ t('drop.active') }}
+        </div>
       </main>
 
       <component

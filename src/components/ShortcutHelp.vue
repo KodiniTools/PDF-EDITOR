@@ -2,10 +2,12 @@
 /** Übersicht aller Tastenkürzel (Taste ? oder F1). */
 import { onBeforeUnmount, onMounted } from 'vue'
 
+import { useI18n } from '@/i18n'
 import type { ShortcutGroup } from '@/lib/shortcuts'
 
 defineProps<{ groups: ShortcutGroup[] }>()
 const emit = defineEmits<{ close: [] }>()
+const { t } = useI18n()
 
 function onKey(e: KeyboardEvent): void {
   if (e.key === 'Escape' || e.key === '?' || e.key === 'F1') {
@@ -30,8 +32,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       data-testid="shortcut-help"
     >
       <div class="flex items-baseline justify-between gap-2">
-        <h2 id="shortcut-title" class="text-base font-semibold">Tastenkürzel</h2>
-        <span class="text-xs pdf-control-muted">Auf dem Mac ⌘ statt Strg</span>
+        <h2 id="shortcut-title" class="text-base font-semibold">{{ t('shortcuts.title') }}</h2>
+        <span class="text-xs pdf-control-muted">{{ t('shortcuts.macNote') }}</span>
       </div>
       <div class="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-2">
         <section v-for="g in groups" :key="g.title">
@@ -53,7 +55,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </section>
       </div>
       <p class="mt-4 text-xs pdf-control-muted">
-        Buchstaben-Kürzel wirken nicht, solange ein Eingabefeld aktiv ist. Esc verlässt das Feld.
+        {{ t('shortcuts.note') }}
       </p>
       <div class="mt-4 flex justify-end">
         <button
@@ -61,7 +63,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           class="rounded-md border pdf-control-border px-3 py-1.5 pdf-control-hover"
           @click="emit('close')"
         >
-          Schließen
+          {{ t('common.close') }}
         </button>
       </div>
     </div>
