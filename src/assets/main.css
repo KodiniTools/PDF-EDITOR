@@ -1,5 +1,14 @@
 @import 'tailwindcss';
 
+/*
+ * Oberflächenschrift: Supreme (Regular 400, Bold 700). Die Dateien liefert der Server
+ * unter /fonts/ aus; das @font-face dazu setzt das Vite-Plugin `serverFonts` in die
+ * index.html. Inhalte auf der PDF-Seite setzen ihre Schrift selbst (CSS_FONTS).
+ */
+@theme {
+  --font-sans: 'Supreme', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
 html,
 body {
   height: 100%;

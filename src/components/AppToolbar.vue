@@ -5,7 +5,7 @@ import NewDocumentDialog from '@/components/NewDocumentDialog.vue'
 import { useI18n } from '@/i18n'
 import { displaySize, normalizeRotation, TEXT_LINE_HEIGHT } from '@/lib/geometry'
 import { IMAGE_ACCEPT, readImageFile } from '@/lib/image'
-import { longestLineWidth, minTextWidth } from '@/lib/textLayout'
+import { CSS_FONTS, longestLineWidth, minTextWidth } from '@/lib/textLayout'
 import { unwrapSoft } from '@/lib/textWrap'
 import { useDocumentStore } from '@/stores/document'
 import type { FontFamily, TextAlign, Tool } from '@/types/pdf'
@@ -493,9 +493,18 @@ function chooseTool(id: Tool): void {
           class="rounded border pdf-control-border px-1 py-0.5"
           :title="t('toolbar.selectionFont')"
           :aria-label="t('toolbar.selectionFont')"
+          :style="{ fontFamily: CSS_FONTS[selectedFont] }"
           data-testid="selected-font"
         >
-          <option v-for="f in fontOptions" :key="f.value" :value="f.value">{{ f.label }}</option>
+          <!-- Die Schriftauswahl zeigt jede Schrift in sich selbst, nicht in der Oberflächenschrift. -->
+          <option
+            v-for="f in fontOptions"
+            :key="f.value"
+            :value="f.value"
+            :style="{ fontFamily: CSS_FONTS[f.value] }"
+          >
+            {{ f.label }}
+          </option>
         </select>
         <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.textStyle')">
           <button
@@ -511,7 +520,7 @@ function chooseTool(id: Tool): void {
           </button>
           <button
             type="button"
-            class="pdf-tool-button w-9 font-serif italic"
+            class="pdf-tool-button w-9 italic"
             :title="t('toolbar.italic')"
             :aria-label="t('toolbar.italic')"
             :aria-pressed="selectedText.italic === true"

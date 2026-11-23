@@ -45,7 +45,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 <kbd
                   v-for="k in s.keys"
                   :key="k"
-                  class="rounded border pdf-control-border pdf-control-raised px-1.5 py-0.5 font-mono text-xs"
+                  class="rounded border pdf-control-border pdf-control-raised px-1.5 py-0.5 text-xs"
                 >
                   {{ k }}
                 </kbd>
