@@ -386,7 +386,7 @@ function applyReflow(a: TextAnnotation, group?: string): void {
 }
 
 /**
- * Größe, Schrift oder Schnitt (fett/kursiv) in der Werkzeugleiste geändert: bereits umbrochene Texte neu umbrechen
+ * Größe, Schrift, Schnitt (fett/kursiv) oder X-Position in der Werkzeugleiste geändert: bereits umbrochene Texte neu umbrechen
  * (gleiche Undo-Gruppe wie die Änderung selbst).
  */
 watch(
@@ -394,7 +394,7 @@ watch(
     props.page.annotations
       .map((a) =>
         a.kind === 'text'
-          ? `${a.id}:${a.fontSize}:${a.font ?? ''}:${a.bold === true}:${a.italic === true}`
+          ? `${a.id}:${a.x}:${a.fontSize}:${a.font ?? ''}:${a.bold === true}:${a.italic === true}`
           : '',
       )
       .join('|'),
