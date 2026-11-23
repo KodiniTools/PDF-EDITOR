@@ -5,7 +5,7 @@ import NewDocumentDialog from '@/components/NewDocumentDialog.vue'
 import { useI18n } from '@/i18n'
 import { IMAGE_ACCEPT, readImageFile } from '@/lib/image'
 import { useDocumentStore } from '@/stores/document'
-import type { FontFamily, Tool } from '@/types/pdf'
+import type { FontFamily, TextAlign, Tool } from '@/types/pdf'
 
 const emit = defineEmits<{
   openFiles: [files: File[]]
@@ -125,6 +125,19 @@ const selectedFont = computed({
     }
   },
 })
+
+/** Fett/kursiv der Auswahl umschalten bzw. Ausrichtung setzen (ein Undo-Schritt je Text). */
+function patchSelectedText(patch: { bold?: boolean; italic?: boolean; align?: TextAlign }): void {
+  const page = store.selectedPage
+  const a = selectedText.value
+  if (page && a) store.updateAnnotation(page.id, a.id, patch, `style:${a.id}`)
+}
+
+const alignOptions = computed<{ value: TextAlign; label: string }[]>(() => [
+  { value: 'left', label: t('toolbar.alignLeft') },
+  { value: 'center', label: t('toolbar.alignCenter') },
+  { value: 'right', label: t('toolbar.alignRight') },
+])
 
 const fontOptions: { value: FontFamily; label: string }[] = [
   { value: 'sans', label: 'Helvetica' },
@@ -272,6 +285,101 @@ function chooseTool(id: Tool): void {
     </button>
     <NewDocumentDialog v-if="showNewDocument" @close="showNewDocument = false" />
 
+    <!-- Format des ausgewählten Textes, in der oberen Zeile.
+         data-text-style-controls: Fokus hier beendet die Textbearbeitung nicht (PageEditor). -->
+    <div
+      v-if="store.hasDocument && selectedText"
+      class="flex flex-wrap items-center gap-2 text-sm"
+      role="group"
+      :aria-label="t('toolbar.selectedText')"
+      data-text-style-controls
+      data-testid="text-format"
+    >
+      <label class="flex items-center gap-1" :title="t('toolbar.selectedText')">
+        {{ t('toolbar.selectionSize') }}
+        <input
+          v-model.lazy.number="selectedFontSize"
+          type="number"
+          min="4"
+          max="200"
+          step="0.5"
+          class="w-16 rounded border pdf-control-border px-1 py-0.5"
+          data-testid="selected-font-size"
+        />
+      </label>
+      <select
+        v-model="selectedFont"
+        class="rounded border pdf-control-border px-1 py-0.5"
+        :title="t('toolbar.selectionFont')"
+        :aria-label="t('toolbar.selectionFont')"
+        data-testid="selected-font"
+      >
+        <option v-for="f in fontOptions" :key="f.value" :value="f.value">{{ f.label }}</option>
+      </select>
+      <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.textStyle')">
+        <button
+          type="button"
+          class="pdf-tool-button w-9 font-bold"
+          :title="t('toolbar.bold')"
+          :aria-label="t('toolbar.bold')"
+          :aria-pressed="selectedText.bold === true"
+          data-testid="text-bold"
+          @click="patchSelectedText({ bold: !selectedText.bold })"
+        >
+          {{ t('toolbar.boldLetter') }}
+        </button>
+        <button
+          type="button"
+          class="pdf-tool-button w-9 font-serif italic"
+          :title="t('toolbar.italic')"
+          :aria-label="t('toolbar.italic')"
+          :aria-pressed="selectedText.italic === true"
+          data-testid="text-italic"
+          @click="patchSelectedText({ italic: !selectedText.italic })"
+        >
+          {{ t('toolbar.italicLetter') }}
+        </button>
+      </div>
+      <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.align')">
+        <button
+          v-for="option in alignOptions"
+          :key="option.value"
+          type="button"
+          class="pdf-tool-button grid w-9 place-items-center"
+          :title="option.label"
+          :aria-label="option.label"
+          :aria-pressed="(selectedText.align ?? 'left') === option.value"
+          :data-testid="`text-align-${option.value}`"
+          @click="patchSelectedText({ align: option.value })"
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">
+            <rect x="1" y="2" width="14" height="1.6" />
+            <rect
+              :x="option.value === 'left' ? 1 : option.value === 'center' ? 4 : 7"
+              y="5.5"
+              width="8"
+              height="1.6"
+            />
+            <rect x="1" y="9" width="14" height="1.6" />
+            <rect
+              :x="option.value === 'left' ? 1 : option.value === 'center' ? 4 : 7"
+              y="12.5"
+              width="8"
+              height="1.6"
+            />
+          </svg>
+        </button>
+      </div>
+      <input
+        v-model="selectedColor"
+        type="color"
+        class="h-7 w-8"
+        :title="t('toolbar.selectionTextColor')"
+        :aria-label="t('toolbar.selectionTextColor')"
+        data-testid="selected-text-color"
+      />
+    </div>
+
     <div v-if="store.hasDocument" class="flex flex-wrap items-center gap-2">
       <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.tools')">
         <button
@@ -316,40 +424,7 @@ function chooseTool(id: Tool): void {
         {{ deleteLabel }}
       </button>
 
-      <!-- data-text-style-controls: Fokus hier beendet die Textbearbeitung nicht (PageEditor). -->
-      <label
-        v-if="selectedText"
-        class="flex items-center gap-1 text-sm"
-        :title="t('toolbar.selectedText')"
-        data-text-style-controls
-      >
-        {{ t('toolbar.selectionSize') }}
-        <input
-          v-model.lazy.number="selectedFontSize"
-          type="number"
-          min="4"
-          max="200"
-          step="0.5"
-          class="w-16 rounded border pdf-control-border px-1 py-0.5"
-          data-testid="selected-font-size"
-        />
-        <select
-          v-model="selectedFont"
-          class="rounded border pdf-control-border px-1 py-0.5"
-          :title="t('toolbar.selectionFont')"
-          data-testid="selected-font"
-        >
-          <option v-for="f in fontOptions" :key="f.value" :value="f.value">{{ f.label }}</option>
-        </select>
-        <input
-          v-model="selectedColor"
-          type="color"
-          class="h-7 w-8"
-          :title="t('toolbar.selectionTextColor')"
-          data-testid="selected-text-color"
-        />
-      </label>
-      <label v-else-if="store.tool === 'text'" class="flex items-center gap-1 text-sm">
+      <label v-if="!selectedText && store.tool === 'text'" class="flex items-center gap-1 text-sm">
         {{ t('toolbar.size') }}
         <input
           v-model.number="store.fontSize"

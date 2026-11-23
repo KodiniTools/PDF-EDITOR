@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /** Rechte Seitenleiste des privaten Builds: Schwärzen, Fragen, Formular, Bilder, Text. */
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { isMod, isPlainKey, isTypingTarget, modalOpen } from '@/lib/shortcuts'
+import { useDocumentStore } from '@/stores/document'
 
 import AskPanel from './AskPanel.vue'
 import FormPanel from './FormPanel.vue'
@@ -20,6 +21,15 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 const tab = ref<Tab>('redact')
 const root = ref<HTMLElement | null>(null)
+const store = useDocumentStore()
+
+// Klick auf einen eingefügten Text: Reiter „Text“ öffnen (ohne den Fokus zu verschieben).
+watch(
+  () => (store.selectedAnnotation?.kind === 'text' ? store.selectedAnnotation.id : null),
+  (id) => {
+    if (id) tab.value = 'text'
+  },
+)
 
 /** Klickt den Button mit data-shortcut im sichtbaren Reiter, falls aktiv. */
 function clickAction(kind: 'primary' | 'secondary' | 'apply'): boolean {

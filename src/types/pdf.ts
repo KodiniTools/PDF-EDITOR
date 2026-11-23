@@ -34,6 +34,8 @@ interface AnnotationBase {
   y: number
 }
 
+export type TextAlign = 'left' | 'center' | 'right'
+
 export interface TextAnnotation extends AnnotationBase {
   kind: 'text'
   text: string
@@ -41,6 +43,10 @@ export interface TextAnnotation extends AnnotationBase {
   color: string
   /** Standard: 'sans' (Helvetica). */
   font?: FontFamily
+  bold?: boolean
+  italic?: boolean
+  /** Ausrichtung der Zeilen innerhalb des Textblocks. Standard: 'left'. */
+  align?: TextAlign
   /** Gesetzt, wenn der Text eine vorhandene PDF-Zeile ersetzt (Schlüssel der Zeile). */
   replacesKey?: string
   /** Zugehörige Abdeckung; wird mit dem Text zusammen gelöscht. */

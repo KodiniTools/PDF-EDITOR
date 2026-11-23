@@ -1,10 +1,19 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 
 import PrivatePanel from '@/private/components/PrivatePanel.vue'
+import { useDocumentStore } from '@/stores/document'
 
 enableAutoUnmount(afterEach)
+
+vi.mock('@/services/pdfRenderer', () => ({
+  openDocument: async () => [],
+  closeDocument: async () => undefined,
+  renderPage: async () => undefined,
+  getTextLines: async () => [],
+}))
 
 const clicks = vi.hoisted(() => ({ list: [] as string[] }))
 
@@ -55,6 +64,52 @@ function press(key: string, init: KeyboardEventInit = {}, target: EventTarget = 
 }
 
 describe('PrivatePanel – Tastenkürzel', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('öffnet den Reiter „Text“, sobald ein eingefügter Text ausgewählt wird', async () => {
+    const w = mountPanel()
+    const store = useDocumentStore()
+    store.pages.push({
+      id: 'p1',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 600, height: 800 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    store.selectedPageId = 'p1'
+    const selected = (id: string) =>
+      w.get(`[data-testid="private-tab-${id}"]`).attributes('aria-selected')
+
+    // Eine Markierung auszuwählen wechselt den Reiter nicht.
+    store.selectedAnnotationId = store.addAnnotation('p1', {
+      kind: 'highlight',
+      x: 1,
+      y: 1,
+      width: 10,
+      height: 10,
+      color: '#ffff00',
+    })
+    await flushPromises()
+    expect(selected('redact')).toBe('true')
+
+    store.selectedAnnotationId = store.addAnnotation('p1', {
+      kind: 'text',
+      text: 'Hallo',
+      fontSize: 14,
+      color: '#000000',
+      x: 10,
+      y: 10,
+    })
+    await flushPromises()
+    expect(selected('text')).toBe('true')
+
+    // Der Nutzer kann danach frei wechseln; derselbe Text holt den Reiter nicht zurück.
+    press('1')
+    await flushPromises()
+    expect(selected('redact')).toBe('true')
+  })
   it('wechselt Reiter mit 1–5 und löst die Aktionen des sichtbaren Reiters aus', async () => {
     const w = mountPanel()
     press('3')
