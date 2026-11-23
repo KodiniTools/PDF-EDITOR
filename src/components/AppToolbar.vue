@@ -140,6 +140,32 @@ const fontOptions: { value: FontFamily; label: string }[] = [
   { value: 'mono', label: 'Courier' },
 ]
 
+/** Ausgewählte Markierung (Farbe nachträglich änderbar). */
+const selectedHighlight = computed(() => {
+  const a = store.selectedAnnotation
+  return a?.kind === 'highlight' ? a : null
+})
+
+/**
+ * Markierfarbe: gilt für neue Markierungen und wirkt sofort auf die ausgewählte.
+ * Das `input`-Ereignis des Farbwählers feuert schon während der Auswahl im Fenster.
+ */
+const highlightColor = computed({
+  get: () => selectedHighlight.value?.color ?? store.highlightColor,
+  set: (value: string) => {
+    store.highlightColor = value
+    const page = store.selectedPage
+    if (page && selectedHighlight.value) {
+      store.updateAnnotation(
+        page.id,
+        selectedHighlight.value.id,
+        { color: value },
+        `style:${selectedHighlight.value.id}`,
+      )
+    }
+  },
+})
+
 /** Ausgewählte echte Schwärzung (Farbe nachträglich änderbar). */
 const selectedRedaction = computed(() => {
   const a = store.selectedAnnotation
@@ -283,7 +309,13 @@ function chooseTool(id: Tool): void {
         {{ deleteLabel }}
       </button>
 
-      <label v-if="selectedText" class="flex items-center gap-1 text-sm" title="Ausgewählter Text">
+      <!-- data-text-style-controls: Fokus hier beendet die Textbearbeitung nicht (PageEditor). -->
+      <label
+        v-if="selectedText"
+        class="flex items-center gap-1 text-sm"
+        title="Ausgewählter Text"
+        data-text-style-controls
+      >
         Auswahl: Größe
         <input
           v-model.lazy.number="selectedFontSize"
@@ -314,9 +346,18 @@ function chooseTool(id: Tool): void {
         />
         <input v-model="store.textColor" type="color" class="h-7 w-8" title="Textfarbe" />
       </label>
-      <label v-if="store.tool === 'highlight'" class="flex items-center gap-1 text-sm">
-        Farbe
-        <input v-model="store.highlightColor" type="color" class="h-7 w-8" title="Markierfarbe" />
+      <label
+        v-if="store.tool === 'highlight' || selectedHighlight"
+        class="flex items-center gap-1 text-sm"
+      >
+        {{ selectedHighlight ? 'Auswahl: Farbe' : 'Farbe' }}
+        <input
+          v-model="highlightColor"
+          type="color"
+          class="h-7 w-8"
+          :title="selectedHighlight ? 'Farbe der ausgewählten Markierung' : 'Markierfarbe'"
+          data-testid="highlight-color"
+        />
       </label>
       <div
         v-if="store.tool === 'cover'"

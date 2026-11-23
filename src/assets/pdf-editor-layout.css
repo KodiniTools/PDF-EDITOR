@@ -155,47 +155,11 @@
     border-left: 0;
     border-top: 1px solid var(--pdf-border);
   }
-
-  .pdf-editor-workspace:has(> .pdf-editor-private) > .pdf-editor-pages {
-    width: 100%;
-    flex: 0 0 155px;
-    border-right: 0;
-    border-bottom: 1px solid var(--pdf-border);
-  }
-
-  .pdf-editor-workspace:has(> .pdf-editor-private) > .pdf-editor-pages > ol {
-    display: flex;
-    gap: 8px;
-    overflow: auto;
-  }
-
-  .pdf-editor-workspace:has(> .pdf-editor-private) > .pdf-editor-pages > ol > li {
-    flex: 0 0 148px;
-    margin: 0;
-  }
 }
 
 @media (max-width: 600px) {
   .pdf-editor-workspace {
     flex-direction: column;
     min-height: 420px;
-  }
-
-  .pdf-editor-workspace > .pdf-editor-pages {
-    width: 100%;
-    flex: 0 0 155px;
-    border-right: 0;
-    border-bottom: 1px solid var(--pdf-border);
-  }
-
-  .pdf-editor-workspace > .pdf-editor-pages > ol {
-    display: flex;
-    gap: 8px;
-    overflow: auto;
-  }
-
-  .pdf-editor-workspace > .pdf-editor-pages > ol > li {
-    flex: 0 0 148px;
-    margin: 0;
   }
 }
