@@ -64,4 +64,46 @@ describe('AppToolbar', () => {
     expect(wrapper.text()).not.toContain('Schwärzen')
     expect(wrapper.text()).not.toContain('privat')
   })
+
+  it('ändert die Farbe der ausgewählten Markierung sofort', async () => {
+    const store = useDocumentStore()
+    store.pages.push({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 100, height: 100 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    store.selectedPageId = 'p'
+    const id = store.addAnnotation('p', {
+      kind: 'highlight',
+      color: '#facc15',
+      x: 1,
+      y: 1,
+      width: 10,
+      height: 10,
+    })
+    const wrapper = mount(AppToolbar)
+    // Ohne Auswahl und ohne Markier-Werkzeug gibt es keinen Farbwähler.
+    store.selectedAnnotationId = null
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="highlight-color"]').exists()).toBe(false)
+
+    store.selectedAnnotationId = id
+    await wrapper.vm.$nextTick()
+    const input = wrapper.get('[data-testid="highlight-color"]')
+    expect((input.element as HTMLInputElement).value).toBe('#facc15')
+
+    // `input` feuert schon während der Auswahl im Farbfenster.
+    await input.setValue('#00ff00')
+    expect(store.pages[0]!.annotations[0]).toMatchObject({ kind: 'highlight', color: '#00ff00' })
+    expect(store.highlightColor).toBe('#00ff00')
+
+    // Mehrere Farbwechsel sind ein einziger Undo-Schritt.
+    await input.setValue('#0000ff')
+    store.undo()
+    expect(store.pages[0]!.annotations[0]).toMatchObject({ color: '#facc15' })
+  })
 })

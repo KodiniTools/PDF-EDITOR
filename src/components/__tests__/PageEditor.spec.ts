@@ -51,6 +51,63 @@ describe('PageEditor', () => {
     wrapper.unmount()
   })
 
+  it('behält ein neues, leeres Textfeld beim Klick auf die Schriftauswahl', async () => {
+    const { store, wrapper } = setup()
+    // Stellvertreter für die Format-Bedienelemente der Werkzeugleiste.
+    const controls = document.createElement('label')
+    controls.setAttribute('data-text-style-controls', '')
+    const fontSelect = document.createElement('select')
+    controls.append(fontSelect)
+    const elsewhere = document.createElement('button')
+    document.body.append(controls, elsewhere)
+
+    store.setTool('text')
+    await wrapper
+      .get('[data-testid="overlay"]')
+      .trigger('pointerdown', { button: 0, clientX: 10, clientY: 10 })
+    await flushPromises()
+    const id = store.pages[0]!.annotations[0]!.id
+
+    // Fokus wechselt in die Schriftauswahl: Annotation und Textfeld bleiben.
+    await wrapper.get('textarea').trigger('blur', { relatedTarget: fontSelect })
+    expect(store.pages[0]!.annotations).toHaveLength(1)
+    expect(wrapper.find('textarea').exists()).toBe(true)
+
+    // Die Schrift lässt sich ändern, solange das Feld noch leer ist.
+    store.updateAnnotation('p1', id, { font: 'serif' })
+    expect(store.pages[0]!.annotations[0]).toMatchObject({ kind: 'text', font: 'serif' })
+
+    // Zurück ins Textfeld: Bearbeitung läuft weiter.
+    fontSelect.dispatchEvent(
+      new FocusEvent('focusout', { bubbles: true, relatedTarget: wrapper.get('textarea').element }),
+    )
+    await flushPromises()
+    expect(wrapper.find('textarea').exists()).toBe(true)
+
+    // Fokus verlässt die Bedienelemente woandershin: leeres Feld wird wie bisher verworfen.
+    fontSelect.dispatchEvent(
+      new FocusEvent('focusout', { bubbles: true, relatedTarget: elsewhere }),
+    )
+    await flushPromises()
+    expect(store.pages[0]!.annotations).toHaveLength(0)
+
+    controls.remove()
+    elsewhere.remove()
+    wrapper.unmount()
+  })
+
+  it('verwirft ein leeres Textfeld weiterhin, wenn der Fokus woandershin wechselt', async () => {
+    const { store, wrapper } = setup()
+    store.setTool('text')
+    await wrapper
+      .get('[data-testid="overlay"]')
+      .trigger('pointerdown', { button: 0, clientX: 10, clientY: 10 })
+    await flushPromises()
+    await wrapper.get('textarea').trigger('blur')
+    expect(store.pages[0]!.annotations).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('ignoriert Klicks im Auswahl-Werkzeug', async () => {
     const { store, wrapper } = setup()
     await wrapper.get('[data-testid="overlay"]').trigger('pointerdown', { button: 0 })

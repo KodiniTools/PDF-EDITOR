@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue'
 
 import PdfPageCanvas from '@/components/PdfPageCanvas.vue'
 import { HIGHLIGHT_OPACITY } from '@/services/pdfExport'
@@ -347,9 +355,42 @@ function stopEditing(): void {
   store.closeHistoryGroup()
 }
 
-function finishTextEdit(a: Annotation): void {
-  if (editingId.value === a.id) stopEditing()
+/**
+ * Bedienelemente, die den gerade bearbeiteten Text formatieren (Größe, Schrift, Farbe
+ * in der Werkzeugleiste). Wechselt der Fokus dorthin, bleibt die Bearbeitung offen –
+ * sonst würde ein neues, noch leeres Textfeld beim Klick auf die Schriftauswahl gelöscht.
+ */
+const STYLE_CONTROLS = '[data-text-style-controls]'
+
+function keepsEditing(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  if (target.closest(STYLE_CONTROLS)) return true
+  return (
+    target instanceof HTMLTextAreaElement &&
+    target.dataset.id === editingId.value &&
+    overlay.value?.contains(target) === true
+  )
 }
+
+function finishTextEdit(a: Annotation, e?: FocusEvent): void {
+  if (editingId.value !== a.id) return
+  if (keepsEditing(e?.relatedTarget ?? null)) return
+  stopEditing()
+}
+
+/** Fokus verlässt die Format-Bedienelemente: Bearbeitung beenden, außer es geht zurück ins Textfeld. */
+function onDocumentFocusOut(e: FocusEvent): void {
+  if (!editingId.value) return
+  if (!(e.target instanceof Element) || !e.target.closest(STYLE_CONTROLS)) return
+  if (keepsEditing(e.relatedTarget)) return
+  stopEditing()
+}
+
+onMounted(() => document.addEventListener('focusout', onDocumentFocusOut))
+onBeforeUnmount(() => document.removeEventListener('focusout', onDocumentFocusOut))
+// Werkzeugwechsel per Tastenkürzel beendet die Bearbeitung ebenfalls.
+// `sync`, damit ein direkt folgender Klick nicht das dabei neu angelegte Textfeld trifft.
+watch(() => store.tool, stopEditing, { flush: 'sync' })
 
 function onTextInput(a: Annotation, e: Event): void {
   const value = (e.target as HTMLTextAreaElement).value
@@ -559,7 +600,7 @@ function px(v: number): string {
             :style="{ minWidth: '6em', font: 'inherit', color: 'inherit', lineHeight: 'inherit' }"
             aria-label="Annotationstext"
             @input="onTextInput(a, $event)"
-            @blur="finishTextEdit(a)"
+            @blur="finishTextEdit(a, $event)"
             @keydown.esc="($event.target as HTMLTextAreaElement).blur()"
             @pointerdown.stop
           />
