@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig, type Plugin } from 'vite'
@@ -18,6 +19,44 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 const PRIVATE_MODE = 'private'
 /** Port des Backends (nur für `pnpm dev:privat`), siehe server/README.md. */
 const API_PORT = process.env.PDF_API_PORT ?? '3417'
+
+/**
+ * Globale Navigation aus dem vorhandenen KodiniTools-Partial einbinden.
+ * Mit `enabled = false` (private Variante) entfällt die Navigation vollständig:
+ * der Platzhalter wird aus index.html entfernt und das virtuelle Modul ist leer.
+ */
+function globalNavigation(enabled: boolean): Plugin {
+  const deployedPartial = '/var/www/kodinitools.com/partials/nav.html'
+  const partial =
+    process.env.KODINI_NAV_PARTIAL ??
+    (existsSync(deployedPartial)
+      ? deployedPartial
+      : fileURLToPath(new URL('./partials/nav.html', import.meta.url)))
+  const script = /<script\s*>([\s\S]*?)<\/script>/gi
+  const moduleId = '\0virtual:kodini-nav'
+
+  return {
+    name: 'kodini-global-navigation',
+    transformIndexHtml(html) {
+      if (!enabled) {
+        return html.replace(/[ \t]*<div id="global-nav-slot"><!--INJECT:nav--><\/div>\r?\n?/, '')
+      }
+      const markup = readFileSync(partial, 'utf8').replace(script, '')
+      return html.replace('<!--INJECT:nav-->', () => markup)
+    },
+    resolveId(id) {
+      if (id === 'virtual:kodini-nav') return moduleId
+    },
+    load(id) {
+      if (id !== moduleId) return
+      if (!enabled) return ''
+      this.addWatchFile(partial)
+      return Array.from(readFileSync(partial, 'utf8').matchAll(script), (match) => match[1]).join(
+        '\n',
+      )
+    },
+  }
+}
 
 /** Private Seite: nicht indexieren, keine Canonical-URL der öffentlichen App. */
 function privateHtml(): Plugin {
@@ -46,7 +85,13 @@ export default defineConfig(({ mode }) => {
     define: {
       __PRIVATE__: JSON.stringify(isPrivate),
     },
-    plugins: [vue(), tailwindcss(), vueDevTools(), ...(isPrivate ? [privateHtml()] : [])],
+    plugins: [
+      vue(),
+      tailwindcss(),
+      vueDevTools(),
+      globalNavigation(!isPrivate),
+      ...(isPrivate ? [privateHtml()] : []),
+    ],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

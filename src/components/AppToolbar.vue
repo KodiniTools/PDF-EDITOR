@@ -196,11 +196,7 @@ function chooseTool(id: Tool): void {
 </script>
 
 <template>
-  <header class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-3 py-2">
-    <h1 class="mr-2 font-semibold text-gray-800">
-      PDF-Editor<span v-if="isPrivate" class="ml-1 text-xs font-normal text-red-700">privat</span>
-    </h1>
-
+  <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-3 py-2">
     <button
       type="button"
       class="tb-btn tb-primary"
@@ -460,7 +456,7 @@ function chooseTool(id: Tool): void {
         {{ store.busy ? 'Bitte warten…' : 'Exportieren' }}
       </button>
     </div>
-  </header>
+  </div>
 </template>
 
 <style scoped>

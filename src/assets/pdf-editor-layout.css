@@ -22,7 +22,7 @@
   color: #14213a;
 }
 
-.pdf-editor-shell[data-appearance='light'] {
+:root[data-theme='light'] .pdf-editor-shell {
   --pdf-bg: #f6f5f1;
   --pdf-panel: #fff;
   --pdf-raised: #f0eee8;
@@ -35,7 +35,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  .pdf-editor-shell[data-appearance='system'] {
+  :root:not([data-theme]) .pdf-editor-shell {
     --pdf-bg: #f6f5f1;
     --pdf-panel: #fff;
     --pdf-raised: #f0eee8;
@@ -46,31 +46,6 @@
     --pdf-desk-glow: #dbeaf1;
     --pdf-shadow: #14213a22;
   }
-}
-
-.pdf-editor-appearance {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 0;
-  color: var(--pdf-muted);
-  font-size: 0.875rem;
-}
-
-.pdf-editor-appearance select {
-  min-height: 36px;
-  border: 1px solid var(--pdf-border);
-  border-radius: 8px;
-  padding: 4px 8px;
-  background: var(--pdf-panel);
-  color: var(--pdf-text);
-}
-
-.pdf-editor-appearance select:focus-visible {
-  outline: 2px solid var(--pdf-cyan);
-  outline-offset: 2px;
 }
 
 .pdf-editor-shell > .pdf-editor-toolbar {

@@ -2,6 +2,7 @@
 import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import '@/assets/pdf-editor-layout.css'
+import '@/assets/pdf-editor-header.css'
 
 import AppToolbar from '@/components/AppToolbar.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
@@ -9,6 +10,7 @@ import ShortcutHelp from '@/components/ShortcutHelp.vue'
 import PageEditor from '@/components/PageEditor.vue'
 import PageSidebar from '@/components/PageSidebar.vue'
 import SignatureDialog from '@/components/SignatureDialog.vue'
+import { useAppearance } from '@/composables/useAppearance'
 import { displaySize, normalizeRotation } from '@/lib/geometry'
 import {
   CORE_SHORTCUTS,
@@ -25,7 +27,7 @@ const PrivatePanel = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/PrivatePanel.vue'))
   : null
 const isPrivate = __PRIVATE__
-const appearance = ref<'dark' | 'light' | 'system'>('dark')
+const { appearance, setAppearance } = useAppearance()
 
 const store = useDocumentStore()
 const showSignature = ref(false)
@@ -267,19 +269,21 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="pdf-editor-shell"
-    :data-appearance="appearance"
     @dragover="onDragOver"
     @dragleave.self="dropActive = false"
     @drop="onDrop"
   >
-    <div class="pdf-editor-appearance">
-      <label for="pdf-editor-appearance">Darstellung</label>
-      <select id="pdf-editor-appearance" v-model="appearance">
-        <option value="dark">Dunkel</option>
-        <option value="light">Hell</option>
-        <option value="system">System</option>
-      </select>
-    </div>
+    <header class="pdf-editor-header">
+      <h1>PDF-Editor <span v-if="isPrivate">privat</span></h1>
+      <div class="pdf-editor-appearance">
+        <label for="pdf-editor-appearance">Darstellung</label>
+        <select id="pdf-editor-appearance" :value="appearance" @change="setAppearance">
+          <option value="dark">Dunkel</option>
+          <option value="light">Hell</option>
+          <option value="system">System</option>
+        </select>
+      </div>
+    </header>
 
     <AppToolbar
       class="pdf-editor-toolbar"

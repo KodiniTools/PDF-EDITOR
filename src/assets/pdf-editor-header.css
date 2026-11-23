@@ -1,0 +1,52 @@
+.pdf-editor-header {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: clamp(12px, 2.5vw, 24px) 0;
+  color: var(--pdf-text);
+}
+
+.pdf-editor-header h1 {
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+
+.pdf-editor-header h1 span {
+  margin-inline-start: 4px;
+  color: var(--pdf-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+.pdf-editor-appearance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--pdf-muted);
+  font-size: 0.875rem;
+}
+
+.pdf-editor-appearance select {
+  min-height: 36px;
+  border: 1px solid var(--pdf-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: var(--pdf-panel);
+  color: var(--pdf-text);
+}
+
+:root[data-theme='dark'] .pdf-editor-appearance select {
+  color-scheme: dark;
+}
+
+.pdf-editor-appearance select:focus-visible {
+  outline: 2px solid var(--pdf-cyan);
+  outline-offset: 2px;
+}

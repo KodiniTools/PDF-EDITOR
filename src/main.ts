@@ -12,3 +12,7 @@ app.use(createPinia())
 app.use(router)
 
 app.mount('#app')
+
+void import('virtual:kodini-nav').catch((error: unknown) => {
+  console.error('KodiniTools-Navigation konnte nicht initialisiert werden.', error)
+})
