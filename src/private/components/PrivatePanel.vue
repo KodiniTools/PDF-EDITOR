@@ -60,10 +60,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 <template>
   <aside
     ref="root"
-    class="flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white text-sm"
+    class="flex w-80 shrink-0 flex-col border-l pdf-control-border pdf-control-surface text-sm"
     aria-label="KI-Werkzeuge"
   >
-    <div role="tablist" class="flex border-b border-gray-200">
+    <div role="tablist" class="flex border-b pdf-control-border">
       <button
         v-for="t in TABS"
         :id="`private-tab-${t.id}`"
@@ -75,8 +75,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         class="flex-1 px-2 py-2 font-medium"
         :class="
           tab === t.id
-            ? 'border-b-2 border-blue-600 text-blue-700'
-            : 'text-gray-500 hover:text-gray-800'
+            ? 'border-b-2 pdf-control-accent-border pdf-control-info'
+            : 'pdf-control-muted pdf-control-text-hover'
         "
         :data-testid="`private-tab-${t.id}`"
         :title="`${t.label} (${TABS.indexOf(t) + 1})`"

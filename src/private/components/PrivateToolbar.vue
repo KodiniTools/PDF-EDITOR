@@ -81,21 +81,21 @@ const usageTitle = computed(() => {
 </script>
 
 <template>
-  <div class="flex items-center gap-2 text-sm">
+  <div class="pdf-private-toolbar flex min-w-0 flex-wrap items-center gap-2 text-sm">
     <button
       type="button"
-      class="rounded-md border border-gray-300 bg-white px-3 py-1.5 hover:bg-gray-100"
+      class="rounded-md border pdf-control-border pdf-control-surface px-3 py-1.5 pdf-control-hover"
       data-testid="new-document"
       title="Neues Dokument (N)"
       @click="showNew = true"
     >
       Neues Dokument
     </button>
-    <label class="flex items-center gap-1 text-gray-600" title="Modell für alle KI-Funktionen">
+    <label class="flex items-center gap-1 pdf-control-muted" title="Modell für alle KI-Funktionen">
       <span class="hidden lg:inline">KI-Modell</span>
       <select
         v-model="models.selected"
-        class="rounded-md border border-gray-300 bg-white px-2 py-1.5"
+        class="rounded-md border pdf-control-border pdf-control-surface px-2 py-1.5"
         data-testid="model-select"
       >
         <option v-for="id in models.available" :key="id" :value="id">
@@ -106,7 +106,11 @@ const usageTitle = computed(() => {
     <span
       v-if="models.last"
       class="rounded px-1.5 py-0.5 text-xs tabular-nums whitespace-pre"
-      :class="models.mismatch ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'"
+      :class="
+        models.mismatch
+          ? 'pdf-control-warning-bg pdf-control-warning'
+          : 'pdf-control-raised pdf-control-muted'
+      "
       :title="usageTitle"
       data-testid="model-usage"
     >
@@ -115,11 +119,11 @@ const usageTitle = computed(() => {
     </span>
     <button
       type="button"
-      class="rounded-md border px-2 py-1.5 tabular-nums hover:bg-gray-100"
+      class="rounded-md border px-2 py-1.5 tabular-nums pdf-control-hover"
       :class="
         costs.budgetShare !== null && costs.budgetShare >= 1
-          ? 'border-red-300 bg-red-50 text-red-800'
-          : 'border-gray-300 bg-white'
+          ? 'pdf-control-error-border pdf-control-error-bg pdf-control-error'
+          : 'pdf-control-border pdf-control-surface'
       "
       :title="costTitle"
       data-testid="cost-button"

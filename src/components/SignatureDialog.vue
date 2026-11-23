@@ -133,25 +133,25 @@ function onUpload(e: Event): void {
 <template>
   <dialog
     ref="dialog"
-    class="m-auto w-[min(92vw,560px)] rounded-xl p-0 shadow-2xl backdrop:bg-black/40"
+    class="pdf-control-dialog m-auto w-[min(92vw,560px)] rounded-xl p-0 shadow-2xl"
     aria-labelledby="sig-title"
     @cancel.prevent="emit('cancel')"
   >
     <div class="space-y-3 p-5">
       <h2 id="sig-title" class="text-lg font-semibold">Signatur erstellen</h2>
-      <p class="text-sm text-gray-600">
+      <p class="text-sm pdf-control-muted">
         Mit Maus, Stift oder Finger zeichnen – oder ein Bild hochladen.
       </p>
       <canvas
         ref="canvas"
-        class="h-48 w-full touch-none rounded-lg border border-dashed border-gray-400 bg-gray-50"
+        class="pdf-signature-canvas h-48 w-full touch-none rounded-lg border border-dashed pdf-control-border"
         data-testid="signature-canvas"
         @pointerdown="onDown"
         @pointermove="onMove"
         @pointerup="onUp"
         @pointercancel="onUp"
       />
-      <p v-if="uploadError" class="text-sm text-red-600">{{ uploadError }}</p>
+      <p v-if="uploadError" class="text-sm pdf-control-error">{{ uploadError }}</p>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex gap-2">
           <button type="button" class="btn" @click="clear">Leeren</button>
@@ -175,9 +175,6 @@ function onUpload(e: Event): void {
 @reference 'tailwindcss';
 
 .btn {
-  @apply rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50;
-}
-.btn-primary {
-  @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700;
+  @apply rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50;
 }
 </style>

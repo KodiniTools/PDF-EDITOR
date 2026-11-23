@@ -71,8 +71,8 @@ async function onFile(e: Event): Promise<void> {
 
 <template>
   <section class="flex min-h-0 flex-1 flex-col" data-testid="image-panel">
-    <div class="space-y-2 border-b border-gray-200 p-3">
-      <p class="text-gray-600">
+    <div class="space-y-2 border-b pdf-control-border p-3">
+      <p class="pdf-control-muted">
         Eingebettete Bilder der Seite werden automatisch gefunden. Für Scans, Logos, Stempel und
         Unterschriften: „Mit KI suchen“ (Seitenbild an Claude,
         {{ modelLabel(models.selected) }}).
@@ -80,7 +80,7 @@ async function onFile(e: Event): Promise<void> {
       <div class="flex gap-2">
         <button
           type="button"
-          class="rounded-md border border-gray-300 px-3 py-1.5 hover:bg-gray-100 disabled:opacity-50"
+          class="rounded-md border pdf-control-border px-3 py-1.5 pdf-control-hover disabled:opacity-50"
           :disabled="!page || !!images.busy"
           data-testid="images-scan"
           title="Neu suchen (Strg+Umschalt+Enter)"
@@ -91,7 +91,7 @@ async function onFile(e: Event): Promise<void> {
         </button>
         <button
           type="button"
-          class="rounded-md bg-blue-600 px-3 py-1.5 text-white hover:bg-blue-700 disabled:opacity-50"
+          class="rounded-md pdf-control-primary px-3 py-1.5 disabled:opacity-50"
           :disabled="!page || !!images.busy"
           data-testid="images-ai"
           title="Mit KI suchen (Strg+Enter)"
@@ -101,19 +101,19 @@ async function onFile(e: Event): Promise<void> {
           Mit KI suchen
         </button>
       </div>
-      <p v-if="images.busy === 'ai'" class="flex items-center justify-between text-blue-700">
+      <p v-if="images.busy === 'ai'" class="flex items-center justify-between pdf-control-info">
         <span>Claude sucht Bildbereiche…</span>
         <button type="button" class="underline" @click="images.cancel()">Abbrechen</button>
       </p>
-      <p v-else-if="images.busy === 'pdf'" class="text-blue-700">Suche Bilder…</p>
-      <p v-if="images.error" role="alert" class="text-red-700">{{ images.error }}</p>
+      <p v-else-if="images.busy === 'pdf'" class="pdf-control-info">Suche Bilder…</p>
+      <p v-if="images.error" role="alert" class="pdf-control-error">{{ images.error }}</p>
     </div>
 
     <div class="min-h-0 flex-1 overflow-auto p-3">
-      <p v-if="scanned && list.length === 0 && !images.busy" class="text-gray-500">
+      <p v-if="scanned && list.length === 0 && !images.busy" class="pdf-control-muted">
         Keine Bilder auf dieser Seite gefunden.
       </p>
-      <p v-if="onlyFullPage" class="mb-2 text-amber-700">
+      <p v-if="onlyFullPage" class="mb-2 pdf-control-warning">
         Die Seite ist ein ganzseitiges Bild (Scan). Für einzelne Bereiche darin „Mit KI suchen“.
       </p>
       <ul class="space-y-2">
@@ -121,7 +121,11 @@ async function onFile(e: Event): Promise<void> {
           v-for="(i, n) in list"
           :key="i.id"
           class="rounded-md border p-2"
-          :class="images.hoverId === i.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'"
+          :class="
+            images.hoverId === i.id
+              ? 'pdf-control-accent-border pdf-control-info-bg'
+              : 'pdf-control-border'
+          "
           data-testid="image-item"
           @mouseenter="images.hoverId = i.id"
           @mouseleave="images.hoverId = null"
@@ -130,13 +134,13 @@ async function onFile(e: Event): Promise<void> {
             <span class="font-medium">
               {{ n + 1 }}. {{ i.fullPage ? 'Ganzseitiges Bild' : KIND_LABELS[i.kind] }}
             </span>
-            <span class="text-xs text-gray-500">{{ i.source === 'ai' ? 'KI' : 'PDF' }}</span>
+            <span class="text-xs pdf-control-muted">{{ i.source === 'ai' ? 'KI' : 'PDF' }}</span>
           </div>
-          <p class="text-xs text-gray-600">{{ i.label }} · {{ size(i) }}</p>
+          <p class="text-xs pdf-control-muted">{{ i.label }} · {{ size(i) }}</p>
           <div class="mt-2 flex gap-2">
             <button
               type="button"
-              class="rounded border border-red-300 px-2 py-0.5 text-red-700 hover:bg-red-50"
+              class="rounded border pdf-control-error-border px-2 py-0.5 pdf-control-error pdf-control-error-hover"
               data-testid="image-remove"
               @click="remove(i)"
             >
@@ -144,7 +148,7 @@ async function onFile(e: Event): Promise<void> {
             </button>
             <button
               type="button"
-              class="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-100"
+              class="rounded border pdf-control-border px-2 py-0.5 pdf-control-hover"
               data-testid="image-replace"
               @click="pickReplacement(i)"
             >
@@ -153,7 +157,7 @@ async function onFile(e: Event): Promise<void> {
           </div>
         </li>
       </ul>
-      <p v-if="list.length > 0" class="mt-3 text-xs text-gray-500">
+      <p v-if="list.length > 0" class="mt-3 text-xs pdf-control-muted">
         Gelöschte Bereiche erscheinen weiß und werden beim Export echt entfernt. Rückgängig (Strg+Z)
         stellt sie wieder her.
         <template v-if="list.some((i) => i.source === 'ai')">

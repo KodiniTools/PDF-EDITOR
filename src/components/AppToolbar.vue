@@ -196,7 +196,9 @@ function chooseTool(id: Tool): void {
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-3 py-2">
+  <div
+    class="flex flex-wrap items-center gap-2 border-b pdf-control-border pdf-control-surface px-3 py-2"
+  >
     <button
       type="button"
       class="tb-btn tb-primary"
@@ -238,17 +240,12 @@ function chooseTool(id: Tool): void {
     <component :is="PrivateToolbar" v-if="PrivateToolbar" />
 
     <div v-if="store.hasDocument" class="flex flex-wrap items-center gap-2">
-      <div
-        class="flex overflow-hidden rounded-md border border-gray-300"
-        role="group"
-        aria-label="Werkzeuge"
-      >
+      <div class="pdf-tool-group" role="group" aria-label="Werkzeuge">
         <button
           v-for="t in tools"
           :key="t.id"
           type="button"
-          class="px-3 py-1.5 text-sm"
-          :class="store.tool === t.id ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-100'"
+          class="pdf-tool-button"
           :title="t.hint"
           :aria-pressed="store.tool === t.id"
           @click="chooseTool(t.id)"
@@ -278,7 +275,7 @@ function chooseTool(id: Tool): void {
       <button
         v-if="store.selectedAnnotation"
         type="button"
-        class="tb-btn text-red-700"
+        class="tb-btn pdf-control-error"
         title="Ausgewähltes Element löschen (Entf). Pfeiltasten verschieben, Strg+D dupliziert."
         data-testid="delete-annotation"
         @click="store.removeSelectedAnnotation()"
@@ -294,12 +291,12 @@ function chooseTool(id: Tool): void {
           min="4"
           max="200"
           step="0.5"
-          class="w-16 rounded border border-gray-300 px-1 py-0.5"
+          class="w-16 rounded border pdf-control-border px-1 py-0.5"
           data-testid="selected-font-size"
         />
         <select
           v-model="selectedFont"
-          class="rounded border border-gray-300 px-1 py-0.5"
+          class="rounded border pdf-control-border px-1 py-0.5"
           title="Schrift der Auswahl"
         >
           <option v-for="f in fontOptions" :key="f.value" :value="f.value">{{ f.label }}</option>
@@ -313,7 +310,7 @@ function chooseTool(id: Tool): void {
           type="number"
           min="6"
           max="96"
-          class="w-16 rounded border border-gray-300 px-1 py-0.5"
+          class="w-16 rounded border pdf-control-border px-1 py-0.5"
         />
         <input v-model="store.textColor" type="color" class="h-7 w-8" title="Textfarbe" />
       </label>
@@ -331,13 +328,13 @@ function chooseTool(id: Tool): void {
           :key="p.color"
           type="button"
           class="tb-btn"
-          :class="{ 'ring-2 ring-blue-500': store.coverColor === p.color }"
+          :class="{ 'ring-2 pdf-control-accent-ring': store.coverColor === p.color }"
           @click="store.coverColor = p.color"
         >
           {{ p.label }}
         </button>
         <input v-model="store.coverColor" type="color" class="h-7 w-8" title="Abdeckfarbe" />
-        <span class="text-xs text-amber-700">nur optisch</span>
+        <span class="text-xs pdf-control-warning">nur optisch</span>
       </div>
       <div
         v-if="isPrivate && (store.tool === 'redact' || selectedRedaction)"
@@ -350,13 +347,13 @@ function chooseTool(id: Tool): void {
           :key="p.color"
           type="button"
           class="tb-btn"
-          :class="{ 'ring-2 ring-blue-500': redactColor === p.color }"
+          :class="{ 'ring-2 pdf-control-accent-ring': redactColor === p.color }"
           @click="redactColor = p.color"
         >
           {{ p.label }}
         </button>
         <input v-model="redactColor" type="color" class="h-7 w-8" title="Farbe der Schwärzung" />
-        <span class="text-xs text-red-700">echt – wirkt beim Export</span>
+        <span class="text-xs pdf-control-error">echt – wirkt beim Export</span>
       </div>
       <button
         v-if="store.tool === 'signature'"
@@ -414,7 +411,7 @@ function chooseTool(id: Tool): void {
       </div>
     </div>
 
-    <div class="ml-auto flex gap-2">
+    <div class="ml-auto flex flex-wrap gap-2">
       <button
         type="button"
         class="tb-btn"
@@ -463,9 +460,6 @@ function chooseTool(id: Tool): void {
 @reference 'tailwindcss';
 
 .tb-btn {
-  @apply rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50;
-}
-.tb-primary {
-  @apply border-blue-600 bg-blue-600 text-white hover:bg-blue-700;
+  @apply rounded-md border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50;
 }
 </style>
