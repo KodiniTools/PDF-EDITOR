@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 
+import '@/assets/pdf-editor-layout.css'
+
 import AppToolbar from '@/components/AppToolbar.vue'
 import ExportDialog from '@/components/ExportDialog.vue'
 import ShortcutHelp from '@/components/ShortcutHelp.vue'
@@ -23,6 +25,7 @@ const PrivatePanel = __PRIVATE__
   ? defineAsyncComponent(() => import('@/private/components/PrivatePanel.vue'))
   : null
 const isPrivate = __PRIVATE__
+const appearance = ref<'dark' | 'light' | 'system'>('dark')
 
 const store = useDocumentStore()
 const showSignature = ref(false)
@@ -263,12 +266,23 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="flex h-full flex-col bg-gray-100 text-gray-900"
+    class="pdf-editor-shell"
+    :data-appearance="appearance"
     @dragover="onDragOver"
     @dragleave.self="dropActive = false"
     @drop="onDrop"
   >
+    <div class="pdf-editor-appearance">
+      <label for="pdf-editor-appearance">Darstellung</label>
+      <select id="pdf-editor-appearance" v-model="appearance">
+        <option value="dark">Dunkel</option>
+        <option value="light">Hell</option>
+        <option value="system">System</option>
+      </select>
+    </div>
+
     <AppToolbar
+      class="pdf-editor-toolbar"
       ref="toolbar"
       @open-files="openFiles"
       @help="showHelp = true"
@@ -293,11 +307,11 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div class="flex min-h-0 flex-1">
-      <PageSidebar v-if="store.hasDocument" />
+    <div class="pdf-editor-workspace">
+      <PageSidebar v-if="store.hasDocument" class="pdf-editor-pages" />
 
-      <main class="relative flex-1 overflow-auto p-6">
-        <div v-if="store.selectedPage" class="flex min-w-max justify-center">
+      <main class="pdf-editor-desk">
+        <div v-if="store.selectedPage" class="pdf-editor-paper-row">
           <PageEditor
             :key="store.selectedPage.id"
             :page="store.selectedPage"
@@ -305,12 +319,10 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div v-else class="grid h-full place-items-center">
-          <div
-            class="max-w-md rounded-xl border-2 border-dashed border-gray-300 bg-white p-10 text-center"
-          >
-            <p class="text-lg font-medium">PDF hierher ziehen</p>
-            <p class="mt-2 text-sm text-gray-500">
+        <div v-else class="pdf-editor-empty">
+          <div class="pdf-editor-drop-card">
+            <h2>PDF hierher ziehen</h2>
+            <p class="pdf-editor-drop-description">
               oder oben „PDF öffnen“ wählen. Mehrere Dateien werden zusammengeführt.
               <template v-if="isPrivate">
                 Die Datei bleibt im Browser; nur für KI-Vorschläge wird Seitentext an Claude
@@ -318,19 +330,18 @@ onBeforeUnmount(() => {
               </template>
               <template v-else>Alles läuft lokal im Browser, nichts wird hochgeladen.</template>
             </p>
-            <p v-if="store.busy" class="mt-4 text-sm text-blue-600">Lade…</p>
+            <p v-if="store.busy" class="pdf-editor-drop-loading">Lade…</p>
           </div>
         </div>
 
-        <div
-          v-if="dropActive"
-          class="pointer-events-none absolute inset-2 grid place-items-center rounded-xl border-4 border-dashed border-blue-500 bg-blue-50/80 text-lg font-medium text-blue-700"
-        >
-          Loslassen zum Hinzufügen
-        </div>
+        <div v-if="dropActive" class="pdf-editor-drop-active">Loslassen zum Hinzufügen</div>
       </main>
 
-      <component :is="PrivatePanel" v-if="PrivatePanel && store.hasDocument" />
+      <component
+        :is="PrivatePanel"
+        v-if="PrivatePanel && store.hasDocument"
+        class="pdf-editor-private"
+      />
     </div>
 
     <SignatureDialog v-if="showSignature" @save="onSignatureSaved" @cancel="onSignatureCancel" />
