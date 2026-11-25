@@ -84,7 +84,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         role="tab"
         :aria-selected="tab === t.id"
         :aria-controls="`private-panel-${t.id}`"
-        class="flex-1 px-1 py-2 font-medium"
+        class="flex-1 px-1 py-2"
         :class="
           tab === t.id
             ? 'border-b-2 pdf-control-accent-border pdf-control-info'

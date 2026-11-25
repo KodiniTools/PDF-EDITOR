@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import '@/assets/pdf-editor-layout.css'
 import '@/assets/pdf-editor-header.css'
@@ -293,7 +294,17 @@ onBeforeUnmount(() => {
     @drop="onDrop"
   >
     <header class="pdf-editor-header">
-      <h1>{{ t('app.title') }} <span v-if="isPrivate">privat</span></h1>
+      <div class="pdf-editor-heading">
+        <RouterLink
+          v-if="!isPrivate"
+          :to="{ name: 'landing' }"
+          class="pdf-editor-back"
+          data-testid="back-to-home"
+        >
+          ← {{ t('landing.backToHome') }}
+        </RouterLink>
+        <h1>{{ t('app.title') }} <span v-if="isPrivate">privat</span></h1>
+      </div>
       <div class="pdf-editor-appearance">
         <label for="pdf-editor-appearance">{{ t('appearance.label') }}</label>
         <select id="pdf-editor-appearance" :value="appearance" @change="setAppearance">
@@ -331,14 +342,7 @@ onBeforeUnmount(() => {
       class="flex items-start justify-between gap-4 border-b pdf-control-error-border pdf-control-error-bg px-4 py-2 text-sm whitespace-pre-line pdf-control-error"
     >
       <span>{{ store.error }}</span>
-      <button
-        type="button"
-        class="font-medium"
-        :aria-label="t('error.dismiss')"
-        @click="store.error = null"
-      >
-        ✕
-      </button>
+      <button type="button" :aria-label="t('error.dismiss')" @click="store.error = null">✕</button>
     </div>
 
     <div class="pdf-editor-workspace">

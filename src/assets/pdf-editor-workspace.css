@@ -20,7 +20,7 @@
 .pdf-pages-header h2 {
   color: var(--pdf-text);
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .pdf-pages-link {
@@ -114,7 +114,7 @@
   background: var(--pdf-gold);
   color: #14213a;
   font-size: 0.6875rem;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .pdf-thumbnail-controls {

@@ -32,12 +32,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       data-testid="shortcut-help"
     >
       <div class="flex items-baseline justify-between gap-2">
-        <h2 id="shortcut-title" class="text-base font-semibold">{{ t('shortcuts.title') }}</h2>
+        <h2 id="shortcut-title" class="text-base">{{ t('shortcuts.title') }}</h2>
         <span class="text-xs pdf-control-muted">{{ t('shortcuts.macNote') }}</span>
       </div>
       <div class="mt-4 grid gap-x-8 gap-y-5 sm:grid-cols-2">
         <section v-for="g in groups" :key="g.title">
-          <h3 class="mb-1 font-medium pdf-control-muted">{{ g.title }}</h3>
+          <h3 class="mb-1 pdf-control-muted">{{ g.title }}</h3>
           <dl class="space-y-1">
             <div v-for="s in g.items" :key="s.label" class="flex items-start justify-between gap-3">
               <dt class="pdf-control-muted">{{ s.label }}</dt>

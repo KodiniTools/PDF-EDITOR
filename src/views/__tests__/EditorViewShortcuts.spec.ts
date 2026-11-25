@@ -47,6 +47,7 @@ function mountView(): VueWrapper {
         PageSidebar: true,
         SignatureDialog: true,
         ExportDialog: true,
+        RouterLink: true,
       },
     },
   })

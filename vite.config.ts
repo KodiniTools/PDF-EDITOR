@@ -143,30 +143,23 @@ function serverFavicon(): Plugin {
 }
 
 /**
- * Oberflächenschrift Supreme: Die Dateien liegen auf dem Server unter /fonts/ (Site-Root,
+ * Oberflächenschrift Supreme, nur der Regular-Schnitt (die Oberfläche ist nirgends fett).
+ * Die Datei liegt auf dem Server unter /fonts/ (Site-Root,
  * wie bei den anderen Kodini-Tools) und sind nicht Teil des Repos. Das @font-face wird
  * nach Vites HTML-Verarbeitung eingefügt, damit "/fonts/…" nicht auf die Base
  * (/pdf-editor/…) umgeschrieben wird. Abweichender Ort: `KODINI_FONT_BASE`.
  * Fehlt eine Datei, greift die Systemschrift aus `--font-sans`.
  */
 function serverFonts(): Plugin {
-  // Liegen beide Dateien im Repo, werden sie gebündelt (src/lib/uiFonts.ts) – nichts einfügen.
-  const local = ['Supreme-Regular.woff2', 'Supreme-Bold.woff2'].every((file) =>
-    existsSync(fileURLToPath(new URL(`./src/assets/fonts/ui/${file}`, import.meta.url))),
+  // Liegt die Datei im Repo, wird sie gebündelt (src/lib/uiFonts.ts) – nichts einfügen.
+  const local = existsSync(
+    fileURLToPath(new URL('./src/assets/fonts/ui/Supreme-Regular.woff2', import.meta.url)),
   )
   if (local) return { name: 'kodini-server-fonts' }
   const base = (process.env.KODINI_FONT_BASE ?? '/fonts').replace(/\/+$/, '')
-  const faces = [
-    { weight: 400, file: 'Supreme-Regular.woff2' },
-    { weight: 700, file: 'Supreme-Bold.woff2' },
-  ]
-  const css = faces
-    .map(
-      (f) =>
-        `@font-face{font-family:'Supreme';font-style:normal;font-weight:${f.weight};` +
-        `font-display:swap;src:url('${base}/${f.file}') format('woff2')}`,
-    )
-    .join('')
+  const css =
+    `@font-face{font-family:'Supreme';font-style:normal;font-weight:400;` +
+    `font-display:swap;src:url('${base}/Supreme-Regular.woff2') format('woff2')}`
   return {
     name: 'kodini-server-fonts',
     transformIndexHtml: {

@@ -5,12 +5,12 @@ angepasst werden.
 
 ## `ui/` – Schrift der Oberfläche
 
-Leisten, Knöpfe, Felder, Dialoge. Erwartet werden genau diese Dateien:
+Leisten, Knöpfe, Felder, Dialoge und die Startseite. Die Oberfläche nutzt ausschließlich
+Supreme Regular und ist nirgends fett. Erwartet wird genau diese Datei:
 
 - `Supreme-Regular.woff2`
-- `Supreme-Bold.woff2`
 
-Liegen beide hier, werden sie in den Build aufgenommen. Fehlt eine, lädt die App die
+Liegt sie hier, wird sie in den Build aufgenommen. Fehlt sie, lädt die App die
 Schrift wie bisher vom Server unter `/fonts/` (siehe `serverFonts` in `vite.config.ts`).
 
 ## `editor/` – Schriften für den Seiteninhalt

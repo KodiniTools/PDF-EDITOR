@@ -512,7 +512,7 @@ function chooseTool(id: Tool): void {
         <div class="pdf-tool-group" role="group" :aria-label="t('toolbar.textStyle')">
           <button
             type="button"
-            class="pdf-tool-button w-9 font-bold"
+            class="pdf-tool-button w-9"
             :title="t('toolbar.bold')"
             :aria-label="t('toolbar.bold')"
             :aria-pressed="selectedText.bold === true"

@@ -135,7 +135,7 @@ function display(field: FormField, value: string | boolean): string {
       <section v-for="g in groups" :key="g.number" class="mb-3">
         <button
           type="button"
-          class="mb-1 text-xs font-medium pdf-control-muted hover:underline"
+          class="mb-1 text-xs pdf-control-muted hover:underline"
           @click="doc.selectPage(g.pageId)"
         >
           Seite {{ g.number }}
