@@ -210,7 +210,7 @@ onBeforeUnmount(() => {
 
     <template v-else>
       <label class="flex flex-col gap-1">
-        <span class="font-medium">Ausgewählter Text</span>
+        <span>Ausgewählter Text</span>
         <textarea
           :value="sourceText"
           rows="8"
@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
         Text zu lang für die KI (höchstens {{ MAX_REWRITE_LENGTH }} Zeichen).
       </p>
 
-      <h3 class="mt-4 font-medium">Mit KI umschreiben</h3>
+      <h3 class="mt-4">Mit KI umschreiben</h3>
       <p class="mt-1 text-xs pdf-control-muted">
         Der Text wird dafür an Claude (Anthropic) gesendet.
       </p>
@@ -277,7 +277,7 @@ onBeforeUnmount(() => {
       <p v-if="error" role="alert" class="mt-3 pdf-control-error">{{ error }}</p>
 
       <div v-if="result" class="mt-3 border-t pdf-control-border pt-3">
-        <h3 class="font-medium">Vorschlag</h3>
+        <h3>Vorschlag</h3>
         <p
           class="mt-1 max-h-60 overflow-auto rounded-md pdf-control-raised px-2 py-1.5 whitespace-pre-wrap"
           data-testid="assist-result"

@@ -120,7 +120,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="w-full max-w-md rounded-xl pdf-control-dialog pdf-control-surface p-5 text-sm shadow-xl"
       data-testid="export-dialog"
     >
-      <h2 id="export-title" class="text-base font-semibold">
+      <h2 id="export-title" class="text-base">
         {{ mode === 'print' ? t('export.titlePrint') : t('export.titleExport') }}
       </h2>
       <p class="mt-1 pdf-control-muted">

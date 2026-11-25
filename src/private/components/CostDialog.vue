@@ -88,7 +88,7 @@ onBeforeUnmount(() => {
       data-testid="cost-dialog"
     >
       <div class="flex items-start justify-between gap-2">
-        <h2 id="cost-title" class="text-base font-semibold">Kosten der Anthropic API</h2>
+        <h2 id="cost-title" class="text-base">Kosten der Anthropic API</h2>
         <button
           type="button"
           class="rounded-md border pdf-control-border px-2 py-1 pdf-control-hover disabled:opacity-50"
@@ -107,7 +107,7 @@ onBeforeUnmount(() => {
         class="mt-3 space-y-2 rounded-md pdf-control-warning-bg p-3 pdf-control-warning"
         data-testid="cost-setup"
       >
-        <p class="font-medium">Das Backend kennt den Kostenrechner noch nicht.</p>
+        <p>Das Backend kennt den Kostenrechner noch nicht.</p>
         <p>
           Bitte die aktuelle Version mit <code>deploy-privat.sh</code> auf den Server bringen.
           Danach zählt der Server die Kosten jeder KI-Anfrage selbst mit.
@@ -136,7 +136,7 @@ onBeforeUnmount(() => {
         <div class="mt-3 grid grid-cols-3 gap-2">
           <div class="rounded-md pdf-control-raised p-2">
             <div class="text-xs pdf-control-muted">Dieser Monat</div>
-            <div class="text-lg font-semibold tabular-nums" data-testid="cost-month">
+            <div class="text-lg tabular-nums" data-testid="cost-month">
               {{ formatUsd(costs.monthUsd) }}
             </div>
           </div>
@@ -144,14 +144,14 @@ onBeforeUnmount(() => {
             <div class="text-xs pdf-control-muted">
               Heute (UTC{{ costs.report?.source === 'local' ? '' : ', unvollst.' }})
             </div>
-            <div class="text-lg font-semibold tabular-nums">{{ formatUsd(costs.todayUsd) }}</div>
+            <div class="text-lg tabular-nums">{{ formatUsd(costs.todayUsd) }}</div>
           </div>
           <div
             class="rounded-md pdf-control-raised p-2"
             title="Sofort, aus den Tokens dieses Editors geschätzt"
           >
             <div class="text-xs pdf-control-muted">Seit Seitenaufruf ≈</div>
-            <div class="text-lg font-semibold tabular-nums">
+            <div class="text-lg tabular-nums">
               {{ formatUsd(models.sessionCost) }}
             </div>
           </div>
@@ -179,11 +179,11 @@ onBeforeUnmount(() => {
 
         <section class="mt-4 rounded-md border pdf-control-border p-3" data-testid="cost-account">
           <div class="flex items-baseline justify-between">
-            <span class="font-medium">
+            <span>
               {{ account.balance >= 0 ? 'Guthaben (geschätzt)' : 'Offener Betrag' }}
             </span>
             <span
-              class="text-lg font-semibold tabular-nums"
+              class="text-lg tabular-nums"
               :class="account.balance >= 0 ? 'pdf-control-success' : 'pdf-control-error'"
               data-testid="cost-balance"
             >
@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-if="costs.monthByModel.length" class="mt-4">
-          <h3 class="mb-1 font-medium">Dieser Monat nach Modell</h3>
+          <h3 class="mb-1">Dieser Monat nach Modell</h3>
           <table class="w-full" data-testid="cost-models">
             <tr v-for="r in costs.monthByModel" :key="r.model" class="border-t pdf-control-border">
               <td class="py-1">{{ r.model === 'other' ? 'Sonstiges' : modelLabel(r.model) }}</td>

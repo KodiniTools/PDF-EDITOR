@@ -9,6 +9,28 @@ export const de = {
     'Kostenloser PDF-Editor im Browser: PDFs zusammenführen, Seiten drehen, löschen und sortieren, Text und Markierungen einfügen, unterschreiben. Dateien bleiben lokal.',
 
   'app.title': 'PDF-Editor',
+  'landing.navLabel': 'PDF-Editor',
+  'landing.home': 'Startseite',
+  'landing.editor': 'Editor',
+  'landing.backToHome': 'Startseite',
+  'landing.subtitle':
+    'PDFs zusammenführen, Seiten neu anordnen, Texte ergänzen und Dokumente unterschreiben. Direkt im Browser.',
+  'landing.description': 'Kostenlos · Ohne Anmeldung · Lokale Verarbeitung',
+  'landing.cta': 'Editor öffnen',
+  'landing.imageAlt':
+    'Der PDF-Editor mit Seitenleiste, einer markierten Textpassage, eingefügtem Text und einer Unterschrift',
+  'landing.featuresTitle': 'Funktionen',
+  'landing.feature1Title': 'Seiten organisieren',
+  'landing.feature1Desc':
+    'Mehrere PDFs zusammenführen und Seiten sortieren, drehen oder entfernen.',
+  'landing.feature2Title': 'Dokumente bearbeiten',
+  'landing.feature2Desc': 'Text, Bilder und Markierungen ergänzen oder eine Signatur einfügen.',
+  'landing.feature3Title': 'Gezielt exportieren',
+  'landing.feature3Desc': 'Das ganze Dokument oder ausgewählte Seiten als PDF speichern.',
+  'landing.sampleTitle': 'Projektbriefing',
+  'landing.sampleNote': 'Freigabe bis 12. Dezember',
+  'landing.sampleNoteDetail': 'Bitte Seite 3 gegenzeichnen.',
+  'landing.sampleSignature': 'Unterschrift',
   'appearance.label': 'Darstellung',
   'appearance.dark': 'Dunkel',
   'appearance.light': 'Hell',

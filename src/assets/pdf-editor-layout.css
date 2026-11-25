@@ -104,7 +104,7 @@
 
 .pdf-editor-drop-card h2 {
   font-size: clamp(1.35rem, 3.5vw, 2.1rem);
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.15;
   letter-spacing: -0.035em;
 }
@@ -133,7 +133,7 @@
   background: var(--pdf-panel);
   color: var(--pdf-cyan);
   text-align: center;
-  font-weight: 650;
+  font-weight: 400;
   z-index: 20;
 }
 

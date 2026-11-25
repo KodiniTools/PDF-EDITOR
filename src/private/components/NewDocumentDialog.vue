@@ -90,7 +90,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="w-full max-w-lg rounded-xl pdf-control-dialog pdf-control-surface p-5 text-sm shadow-xl"
       data-testid="new-document-dialog"
     >
-      <h2 id="new-doc-title" class="text-base font-semibold">
+      <h2 id="new-doc-title" class="text-base">
         {{ appending ? 'Neue Seite' : 'Neues Dokument' }}
       </h2>
       <p v-if="appending" class="mt-1 text-xs pdf-control-muted" data-testid="new-doc-append-note">
@@ -182,7 +182,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </label>
         <div v-if="useAi" class="flex flex-col gap-1">
           <span class="pdf-control-muted">Modell (Abrechnung)</span>
-          <span class="py-1.5 font-medium" data-testid="new-doc-model">
+          <span class="py-1.5" data-testid="new-doc-model">
             {{ modelLabel(models.selected) }}
           </span>
         </div>

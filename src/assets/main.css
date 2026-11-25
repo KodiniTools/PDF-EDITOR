@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /*
- * Oberflächenschrift: Supreme (Regular 400, Bold 700). Die Dateien liefert der Server
+ * Oberflächenschrift: ausschließlich Supreme Regular (400), nirgends fett. Die Datei liefert der Server
  * unter /fonts/ aus; das @font-face dazu setzt das Vite-Plugin `serverFonts` in die
  * index.html. Inhalte auf der PDF-Seite setzen ihre Schrift selbst (CSS_FONTS).
  */
@@ -12,6 +12,11 @@
 html,
 body {
   height: 100%;
+}
+
+/* Kein Fettdruck in der Oberfläche (Seiteninhalte setzen ihr Gewicht selbst per Inline-Stil). */
+:where(#app) :where(b, strong) {
+  font-weight: inherit;
 }
 
 /*
@@ -40,4 +45,18 @@ body {
 /* Der Abstand des Partials würde zwischen Editor und Footer den Seitenhintergrund zeigen. */
 #global-footer-slot .site-footer {
   margin-top: 0;
+}
+
+/*
+ * Startseite (öffentlich): Sie scrollt als Ganzes. Der Rahmen wächst deshalb mit dem
+ * Inhalt, statt ihn auf Bildschirmhöhe zu begrenzen; der Footer folgt darunter.
+ */
+:root.pdf-landing-active #app-screen {
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+:root.pdf-landing-active #app {
+  flex: 1 0 auto;
 }

@@ -141,7 +141,7 @@ function onUpload(e: Event): void {
     @cancel.prevent="emit('cancel')"
   >
     <div class="space-y-3 p-5">
-      <h2 id="sig-title" class="text-lg font-semibold">{{ t('signature.title') }}</h2>
+      <h2 id="sig-title" class="text-lg">{{ t('signature.title') }}</h2>
       <p class="text-sm pdf-control-muted">
         {{ t('signature.intro') }}
       </p>

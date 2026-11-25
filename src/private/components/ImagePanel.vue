@@ -131,9 +131,7 @@ async function onFile(e: Event): Promise<void> {
           @mouseleave="images.hoverId = null"
         >
           <div class="flex items-baseline justify-between gap-2">
-            <span class="font-medium">
-              {{ n + 1 }}. {{ i.fullPage ? 'Ganzseitiges Bild' : KIND_LABELS[i.kind] }}
-            </span>
+            <span> {{ n + 1 }}. {{ i.fullPage ? 'Ganzseitiges Bild' : KIND_LABELS[i.kind] }} </span>
             <span class="text-xs pdf-control-muted">{{ i.source === 'ai' ? 'KI' : 'PDF' }}</span>
           </div>
           <p class="text-xs pdf-control-muted">{{ i.label }} · {{ size(i) }}</p>

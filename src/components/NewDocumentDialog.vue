@@ -97,7 +97,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="w-full max-w-md rounded-xl pdf-control-dialog pdf-control-surface p-5 text-sm shadow-xl"
       data-testid="new-document-dialog"
     >
-      <h2 id="new-doc-title" class="text-base font-semibold">
+      <h2 id="new-doc-title" class="text-base">
         {{ t(appending ? 'newDoc.titleAppend' : 'newDoc.title') }}
       </h2>
       <p class="mt-1 pdf-control-muted">{{ t('newDoc.intro') }}</p>

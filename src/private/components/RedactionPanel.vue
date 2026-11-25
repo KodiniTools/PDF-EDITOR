@@ -120,7 +120,7 @@ function apply(): void {
       <section v-for="g in groups" :key="g.page.id" class="mb-3">
         <button
           type="button"
-          class="mb-1 text-xs font-medium pdf-control-muted hover:underline"
+          class="mb-1 text-xs pdf-control-muted hover:underline"
           @click="doc.selectPage(g.page.id)"
         >
           Seite {{ g.number }}
@@ -145,7 +145,7 @@ function apply(): void {
               :title="s.reason"
               @click="doc.selectPage(s.pageId)"
             >
-              <span class="block truncate font-medium">{{ s.text }}</span>
+              <span class="block truncate">{{ s.text }}</span>
               <span class="block text-xs pdf-control-muted">
                 {{ CATEGORY_LABELS[s.category] }}
                 <template v-if="s.rects.length > 1"> · {{ s.rects.length }}×</template>

@@ -70,7 +70,7 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
     </button>
     <div class="pdf-thumbnail-controls">
       <label
-        class="flex cursor-pointer items-center gap-1 font-medium"
+        class="flex cursor-pointer items-center gap-1"
         :title="marked ? t('pages.unmarkHint') : t('pages.markHint')"
       >
         <input

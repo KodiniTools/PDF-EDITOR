@@ -11,7 +11,7 @@
 
 .pdf-editor-header h1 {
   font-size: clamp(1.35rem, 3vw, 1.8rem);
-  font-weight: 750;
+  font-weight: 400;
   line-height: 1.2;
   letter-spacing: -0.035em;
 }
@@ -20,8 +20,40 @@
   margin-inline-start: 4px;
   color: var(--pdf-muted);
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: normal;
+}
+
+.pdf-editor-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+/* Rücklink zur Startseite (nur öffentlich), Muster: back-link des Audio Normalizers. */
+.pdf-editor-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--pdf-border);
+  border-radius: 6px;
+  background: var(--pdf-raised);
+  color: var(--pdf-text);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pdf-editor-back:hover {
+  background: var(--pdf-panel);
+}
+
+.pdf-editor-back:focus-visible {
+  outline: 2px solid var(--pdf-cyan);
+  outline-offset: 2px;
 }
 
 .pdf-editor-appearance {
