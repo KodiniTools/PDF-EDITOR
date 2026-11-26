@@ -43,6 +43,7 @@ describe('LandingView', () => {
     await flushPromises()
 
     expect(wrapper.get('h1').text()).toBe('PDF-Editor')
+    expect(wrapper.get('.landing-title-pdf').text()).toBe('PDF-')
     expect(wrapper.get('.landing-tab[aria-current="page"]').text()).toBe('Startseite')
     expect(wrapper.get('[data-testid="landing-cta"]').attributes('href')).toBe('/app')
     expect(wrapper.get('[data-testid="landing-tab-editor"]').attributes('href')).toBe('/app')
