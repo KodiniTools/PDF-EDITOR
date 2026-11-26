@@ -97,6 +97,13 @@
   cursor: pointer;
 }
 
+/* Rahmen genau so groß wie die Canvas; darüber liegen die hinzugefügten Elemente. */
+.pdf-thumbnail-page {
+  position: relative;
+  display: block;
+  max-width: 100%;
+}
+
 .pdf-thumbnail-preview canvas {
   max-width: 100%;
   max-height: var(--pdf-thumbnail-max-height);

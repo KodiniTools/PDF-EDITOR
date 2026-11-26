@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import AnnotationPreview from '@/components/AnnotationPreview.vue'
 import PdfPageCanvas from '@/components/PdfPageCanvas.vue'
 import { useVisibleOnce } from '@/composables/useVisibility'
 import { useI18n } from '@/i18n'
@@ -53,13 +54,20 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
       :aria-current="selected ? 'page' : undefined"
       @click="emit('select')"
     >
-      <PdfPageCanvas
-        v-if="visible"
-        :source-id="page.sourceId"
-        :page-index="page.sourceIndex"
-        :rotation="rotation"
-        :scale="scale"
-      />
+      <!-- Seite + hinzugefügte Elemente, damit die Miniatur dem Export entspricht -->
+      <span v-if="visible" class="pdf-thumbnail-page">
+        <PdfPageCanvas
+          :source-id="page.sourceId"
+          :page-index="page.sourceIndex"
+          :rotation="rotation"
+          :scale="scale"
+        />
+        <AnnotationPreview
+          v-if="page.annotations.length > 0"
+          :size="size"
+          :annotations="page.annotations"
+        />
+      </span>
       <span
         v-if="page.annotations.length > 0"
         class="pdf-thumbnail-annotations"
