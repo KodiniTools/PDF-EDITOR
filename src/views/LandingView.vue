@@ -4,13 +4,21 @@
  * Maße, Farben und Button entsprechen der Startseite des Audio Normalizers
  * (KodiniTools/Audio-Normalizer, tokens-v2 + kodini-layout-stage1).
  */
-import { onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import LandingIllustration from '@/components/landing/LandingIllustration.vue'
 import { useI18n, type MessageKey } from '@/i18n'
 
 const { t } = useI18n()
+
+/** Titel zweifarbig: „PDF-“ / „PDF “ in Gold, der Rest in Blau. */
+const titleParts = computed(() => {
+  const title = t('app.title')
+  const match = /^PDF[-\s]?/.exec(title)
+  const pdf = match?.[0] ?? ''
+  return { pdf, rest: title.slice(pdf.length) }
+})
 
 const features: { title: MessageKey; desc: MessageKey }[] = [
   { title: 'landing.feature1Title', desc: 'landing.feature1Desc' },
@@ -61,7 +69,10 @@ onBeforeUnmount(() => document.documentElement.classList.remove(SCROLL_CLASS))
       <section class="landing-hero">
         <div class="landing-container landing-hero-grid">
           <div>
-            <h1 class="landing-title">{{ t('app.title') }}</h1>
+            <h1 class="landing-title">
+              <span class="landing-title-pdf">{{ titleParts.pdf }}</span
+              >{{ titleParts.rest }}
+            </h1>
             <p class="landing-subtitle">{{ t('landing.subtitle') }}</p>
             <p class="landing-description">{{ t('landing.description') }}</p>
             <RouterLink :to="{ name: 'editor' }" class="landing-cta" data-testid="landing-cta">
@@ -107,6 +118,9 @@ onBeforeUnmount(() => document.documentElement.classList.remove(SCROLL_CLASS))
   --ds-glow-blue: rgba(55, 114, 202, 0.2);
   --ds-glow-cyan: rgba(38, 167, 187, 0.16);
   --ds-heading-accent: #69d7e9;
+  /* Titelfarben aus dem KodiniTools-Logo */
+  --landing-title-gold: #e6bc76;
+  --landing-title-blue: #48a0d8;
   --ds-shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.35);
   --ds-accent-fill-grad: linear-gradient(180deg, #9c6c26 0%, #7a5218 45%, #4a2f0a 100%);
   --ds-accent-fill-grad-hover: linear-gradient(180deg, #8c5f1f 0%, #6a4614 45%, #402908 100%);
@@ -141,6 +155,8 @@ onBeforeUnmount(() => document.documentElement.classList.remove(SCROLL_CLASS))
   --ds-glow-blue: rgba(86, 147, 216, 0.15);
   --ds-glow-cyan: rgba(35, 162, 195, 0.16);
   --ds-heading-accent: #086a80;
+  --landing-title-gold: #775115;
+  --landing-title-blue: #0058a0;
   --ds-shadow-overlay: 0 8px 24px rgba(20, 33, 58, 0.12);
 }
 
@@ -158,6 +174,8 @@ onBeforeUnmount(() => document.documentElement.classList.remove(SCROLL_CLASS))
     --ds-glow-blue: rgba(86, 147, 216, 0.15);
     --ds-glow-cyan: rgba(35, 162, 195, 0.16);
     --ds-heading-accent: #086a80;
+    --landing-title-gold: #775115;
+    --landing-title-blue: #0058a0;
     --ds-shadow-overlay: 0 8px 24px rgba(20, 33, 58, 0.12);
   }
 }
@@ -246,13 +264,17 @@ onBeforeUnmount(() => document.documentElement.classList.remove(SCROLL_CLASS))
 
 .landing-title {
   margin: 0 0 12px;
-  color: var(--ds-text);
+  color: var(--landing-title-blue);
   font-size: clamp(2.25rem, 5.25vw, 4.5rem);
   font-weight: 400;
   line-height: 1.05;
   letter-spacing: -0.045em;
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+
+.landing-title-pdf {
+  color: var(--landing-title-gold);
 }
 
 .landing-subtitle {
