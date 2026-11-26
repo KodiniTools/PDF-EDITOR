@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 
 import AnnotationPreview from '@/components/AnnotationPreview.vue'
 import PdfPageCanvas from '@/components/PdfPageCanvas.vue'
@@ -9,6 +9,15 @@ import { displaySize, normalizeRotation } from '@/lib/geometry'
 import type { PageRef } from '@/types/pdf'
 
 const THUMB_WIDTH = 132
+
+/**
+ * Eingetragene Formularwerte – nur im privaten Build (fällt sonst beim Bauen weg).
+ * Sie werden beim Export fest eingebettet und gehören deshalb in die Miniatur.
+ * KI-Vorschläge und Bildmarkierungen dagegen nicht, sie landen nicht im Export.
+ */
+const FormOverlay = __PRIVATE__
+  ? defineAsyncComponent(() => import('@/private/components/FormOverlay.vue'))
+  : null
 
 const props = defineProps<{
   page: PageRef
@@ -63,10 +72,12 @@ const placeholderHeight = computed(() => Math.round(size.value.height * scale.va
           :scale="scale"
         />
         <AnnotationPreview
-          v-if="page.annotations.length > 0"
+          v-if="page.annotations.length > 0 || FormOverlay"
           :size="size"
           :annotations="page.annotations"
-        />
+        >
+          <component :is="FormOverlay" v-if="FormOverlay" :page="page" :zoom="1" />
+        </AnnotationPreview>
       </span>
       <span
         v-if="page.annotations.length > 0"

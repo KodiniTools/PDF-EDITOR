@@ -92,6 +92,8 @@ function pt(v: number): string {
             <span class="block">{{ a.text }}</span>
           </div>
         </template>
+        <!-- Weitere Ebenen im selben Seitenraum (z. B. private Formularwerte) -->
+        <slot />
       </div>
     </foreignObject>
   </svg>
