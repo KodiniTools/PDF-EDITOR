@@ -126,4 +126,82 @@ describe('ExportDialog', () => {
     key('Escape')
     expect(w.emitted('close')?.length).toBeGreaterThanOrEqual(1)
   })
+
+  describe('Teilen', () => {
+    afterEach(() => vi.unstubAllGlobals())
+
+    function stubShare(share?: (data: ShareData) => Promise<void>) {
+      const fn = vi.fn<(data: ShareData) => Promise<void>>(share ?? (async () => undefined))
+      vi.stubGlobal('navigator', {
+        ...navigator,
+        share: share ? fn : undefined,
+        canShare: share ? () => true : undefined,
+      })
+      return fn
+    }
+
+    it('öffnet das Teilen-Menü mit der PDF der gewählten Seiten, ohne Download', async () => {
+      const share = stubShare(async () => undefined)
+      const store = await open(3)
+      store.toggleMarked(store.pages[1]!.id)
+      const w = mount(ExportDialog, { props: { mode: 'share' } })
+      expect(w.get('#export-title').text()).toBe('Teilen')
+      expect(w.get('[data-testid="share-note"]').text()).toContain('nicht hochgeladen')
+      expect(w.get('[data-testid="export-confirm"]').text()).toBe('1 Seite teilen')
+      await w.get('[data-testid="export-confirm"]').trigger('click')
+      await flushPromises()
+      const file = share.mock.calls[0]![0].files![0]!
+      expect(file.name).toBe('brief-bearbeitet-seite-2.pdf')
+      const out = await PDFDocument.load(new Uint8Array(await file.arrayBuffer()))
+      expect(out.getPages().map((p) => p.getWidth())).toEqual([101])
+      expect(downloadBytes).not.toHaveBeenCalled()
+      expect(w.emitted('close')).toHaveLength(1)
+    })
+
+    it('ohne Unterstützung: Hinweis und Download', async () => {
+      stubShare()
+      await open(2)
+      const w = mount(ExportDialog, { props: { mode: 'share' } })
+      expect(w.get('[data-testid="share-note"]').text()).toContain('heruntergeladen')
+      expect(w.get('[data-testid="export-confirm"]').text()).toBe('2 Seiten herunterladen')
+      await w.get('[data-testid="export-confirm"]').trigger('click')
+      await flushPromises()
+      expect(vi.mocked(downloadBytes).mock.calls[0]![1]).toBe('brief-bearbeitet.pdf')
+      expect(w.emitted('close')).toHaveLength(1)
+    })
+
+    it('Aktivierung abgelaufen: bleibt offen und teilt beim zweiten Klick dieselbe PDF', async () => {
+      let calls = 0
+      const share = stubShare(async () => {
+        calls++
+        if (calls === 1) throw new DOMException('keine Aktivierung', 'NotAllowedError')
+      })
+      const store = await open(2)
+      const exportSpy = vi.spyOn(store, 'exportDocument')
+      const w = mount(ExportDialog, { props: { mode: 'share' } })
+      await w.get('[data-testid="export-confirm"]').trigger('click')
+      await flushPromises()
+      expect(w.emitted('close')).toBeUndefined()
+      expect(w.get('[data-testid="export-confirm"]').text()).toBe('Jetzt teilen')
+      await w.get('[data-testid="export-confirm"]').trigger('click')
+      await flushPromises()
+      expect(share).toHaveBeenCalledTimes(2)
+      expect(exportSpy).toHaveBeenCalledTimes(1)
+      expect(share.mock.calls[1]![0].files![0]!.name).toBe('brief-bearbeitet.pdf')
+      expect(w.emitted('close')).toHaveLength(1)
+    })
+
+    it('Abbruch im Teilen-Menü schließt den Dialog ohne Fehlermeldung', async () => {
+      stubShare(async () => {
+        throw new DOMException('abgebrochen', 'AbortError')
+      })
+      const store = await open(1)
+      const w = mount(ExportDialog, { props: { mode: 'share' } })
+      await w.get('[data-testid="export-confirm"]').trigger('click')
+      await flushPromises()
+      expect(store.error).toBeNull()
+      expect(downloadBytes).not.toHaveBeenCalled()
+      expect(w.emitted('close')).toHaveLength(1)
+    })
+  })
 })

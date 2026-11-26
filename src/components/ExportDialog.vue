@@ -1,23 +1,34 @@
 <script setup lang="ts">
 /**
- * Dialog vor Export bzw. Druck: alle Seiten, nur die in der Seitenleiste markierten
+ * Dialog vor Export, Druck bzw. Teilen: alle Seiten, nur die in der Seitenleiste markierten
  * oder nur die aktuelle Seite. Die Auswahl gilt nur für die Ausgabe; das Dokument im
  * Editor bleibt unverändert. Gedruckt wird die exportierte PDF (mit allen Änderungen).
+ * Teilen übergibt die exportierte PDF an das Teilen-Menü des Systems (kein Upload);
+ * ohne Unterstützung wird sie heruntergeladen.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useI18n } from '@/i18n'
 import { downloadBytes } from '@/lib/file'
 import { formatPageRanges } from '@/lib/pageRanges'
 import { printImages, renderForPrint } from '@/lib/print'
+import { canShareFiles, sharePdf, type ShareResult } from '@/lib/share'
 import { useDocumentStore } from '@/stores/document'
 
 type Scope = 'all' | 'marked' | 'current'
 
-const props = withDefaults(defineProps<{ mode?: 'export' | 'print' }>(), { mode: 'export' })
+type OutputMode = 'export' | 'print' | 'share'
+
+const props = withDefaults(defineProps<{ mode?: OutputMode }>(), { mode: 'export' })
 const emit = defineEmits<{ close: [] }>()
 const printing = ref(false)
-const busy = computed(() => store.busy || printing.value)
+/** Teilen-Menü des Systems ist offen (Promise von navigator.share läuft). */
+const sharing = ref(false)
+const busy = computed(() => store.busy || printing.value || sharing.value)
+/** Einmal beim Öffnen geprüft: Kann der Browser Dateien teilen? */
+const shareSupported = canShareFiles()
+/** Fertig exportierte PDF, die auf einen frischen Klick zum Teilen wartet (Safari). */
+const pendingShare = ref<Uint8Array | null>(null)
 const store = useDocumentStore()
 const { t } = useI18n()
 
@@ -39,6 +50,10 @@ const pageIds = computed<string[] | undefined>(() => {
   }
 })
 const count = computed(() => pageIds.value?.length ?? store.pages.length)
+// Andere Seitenauswahl: bereits erzeugte PDF passt nicht mehr.
+watch(scope, () => {
+  pendingShare.value = null
+})
 
 const fileName = computed(() => {
   const base = store.suggestedFileName.replace(/\.pdf$/i, '')
@@ -49,14 +64,82 @@ const fileName = computed(() => {
 
 const buttonLabel = computed(() => {
   if (printing.value || (store.busy && props.mode === 'print')) return t('export.preparingPrint')
+  if (sharing.value) return t('export.sharing')
   if (store.busy) return t('export.exporting')
   const n = count.value
-  if (props.mode === 'print') return t(n === 1 ? 'export.printOne' : 'export.printMany', { n })
-  return t(n === 1 ? 'export.exportOne' : 'export.exportMany', { n })
+  switch (props.mode) {
+    case 'print':
+      return t(n === 1 ? 'export.printOne' : 'export.printMany', { n })
+    case 'share':
+      if (pendingShare.value) return t('export.shareNow')
+      if (!shareSupported) return t(n === 1 ? 'export.downloadOne' : 'export.downloadMany', { n })
+      return t(n === 1 ? 'export.shareOne' : 'export.shareMany', { n })
+    case 'export':
+      return t(n === 1 ? 'export.exportOne' : 'export.exportMany', { n })
+    default: {
+      const never: never = props.mode
+      return never
+    }
+  }
 })
+
+const title = computed(() => {
+  if (props.mode === 'print') return t('export.titlePrint')
+  if (props.mode === 'share') return t('export.titleShare')
+  return t('export.titleExport')
+})
+const question = computed(() => {
+  if (props.mode === 'print') return t('export.questionPrint')
+  if (props.mode === 'share') return t('export.questionShare')
+  return t('export.questionExport')
+})
+const shareNote = computed(() => {
+  if (pendingShare.value) return t('export.shareReady')
+  return t(shareSupported ? 'export.shareNote' : 'export.shareUnsupported')
+})
+
+/** Ergebnis des Teilens auswerten; schließt den Dialog außer beim Warten auf einen Klick. */
+function onShareResult(result: ShareResult, bytes: Uint8Array): void {
+  switch (result) {
+    case 'needs-gesture':
+      pendingShare.value = bytes
+      return
+    case 'failed':
+      store.error = t('error.shareFailed')
+      emit('close')
+      return
+    case 'shared':
+    case 'cancelled':
+    case 'downloaded':
+      emit('close')
+      return
+    default: {
+      const never: never = result
+      return never
+    }
+  }
+}
+
+async function share(bytes: Uint8Array, fromDirectClick: boolean): Promise<void> {
+  sharing.value = true
+  let result: ShareResult
+  try {
+    result = await sharePdf(bytes, fileName.value, { fromDirectClick })
+  } finally {
+    sharing.value = false
+  }
+  onShareResult(result, bytes)
+}
 
 async function run(): Promise<void> {
   if (busy.value || count.value === 0) return
+  // Zweiter Klick nach „needs-gesture“: dieselbe PDF, jetzt mit frischer Nutzeraktivierung.
+  if (props.mode === 'share' && pendingShare.value) {
+    const ready = pendingShare.value
+    pendingShare.value = null
+    await share(ready, true)
+    return
+  }
   let bytes: Uint8Array
   try {
     bytes = await store.exportDocument(pageIds.value)
@@ -68,6 +151,10 @@ async function run(): Promise<void> {
   if (props.mode === 'export') {
     downloadBytes(bytes, fileName.value)
     emit('close')
+    return
+  }
+  if (props.mode === 'share') {
+    await share(bytes, false)
     return
   }
   printing.value = true
@@ -121,10 +208,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       data-testid="export-dialog"
     >
       <h2 id="export-title" class="text-base">
-        {{ mode === 'print' ? t('export.titlePrint') : t('export.titleExport') }}
+        {{ title }}
       </h2>
       <p class="mt-1 pdf-control-muted">
-        {{ mode === 'print' ? t('export.questionPrint') : t('export.questionExport') }}
+        {{ question }}
       </p>
 
       <fieldset class="mt-4 space-y-2">
@@ -178,10 +265,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </label>
       </fieldset>
 
-      <p v-if="mode === 'export'" class="mt-4 text-xs break-all pdf-control-muted">
+      <p v-if="mode !== 'print'" class="mt-4 text-xs break-all pdf-control-muted">
         {{ t('export.file', { name: fileName }) }}
       </p>
-      <p v-else class="mt-4 text-xs pdf-control-muted">
+      <p v-if="mode === 'share'" class="mt-2 text-xs pdf-control-muted" data-testid="share-note">
+        {{ shareNote }}
+      </p>
+      <p v-if="mode === 'print'" class="mt-4 text-xs pdf-control-muted">
         {{ t('export.printNote') }}
       </p>
 

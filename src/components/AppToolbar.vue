@@ -15,6 +15,7 @@ const emit = defineEmits<{
   openFiles: [files: File[]]
   export: []
   print: []
+  share: []
   help: []
   editSignature: []
 }>()
@@ -450,6 +451,17 @@ function chooseTool(id: Tool): void {
         @click="emit('print')"
       >
         {{ t('toolbar.print') }}
+      </button>
+      <button
+        v-if="store.hasDocument"
+        type="button"
+        class="tb-btn"
+        :title="t('toolbar.shareHint')"
+        :disabled="store.busy"
+        data-testid="share"
+        @click="emit('share')"
+      >
+        {{ t('toolbar.share') }}
       </button>
       <button
         v-if="store.hasDocument"

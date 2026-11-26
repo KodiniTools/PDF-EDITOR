@@ -49,6 +49,7 @@ export const de = {
   'error.notPdfOrImage': 'Keine PDF- oder Bilddatei.',
   'error.noPages': 'Die PDF enthält keine Seiten.',
   'error.exportFailed': 'Export fehlgeschlagen: {message}',
+  'error.shareFailed': 'Teilen war nicht möglich. Die PDF wurde stattdessen heruntergeladen.',
   'error.printFailed': 'Drucken fehlgeschlagen. Alternativ exportieren und die PDF drucken.',
   'error.signatureFailed': 'Signatur konnte nicht eingefügt werden.',
   'error.imageInsertFailed': 'Das Bild konnte nicht eingefügt werden.',
@@ -150,6 +151,9 @@ export const de = {
   'toolbar.shortcutsHint': 'Tastenkürzel anzeigen (? oder F1)',
   'toolbar.print': 'Drucken',
   'toolbar.printHint': 'Drucken (Strg+P oder P)',
+  'toolbar.share': 'Teilen',
+  'toolbar.shareHint':
+    'Teilen, z. B. per Mail, Messenger oder AirDrop (Teilen-Menü des Geräts; ohne Upload)',
   'toolbar.export': 'Exportieren',
   'toolbar.exportHint': 'Exportieren (Strg+S)',
   'toolbar.wait': 'Bitte warten…',
@@ -187,6 +191,20 @@ export const de = {
   'export.exportMany': '{n} Seiten exportieren',
   'export.printOne': '{n} Seite drucken',
   'export.printMany': '{n} Seiten drucken',
+  'export.titleShare': 'Teilen',
+  'export.questionShare': 'Welche Seiten sollen geteilt werden?',
+  'export.shareNote':
+    'Danach öffnet sich das Teilen-Menü deines Geräts (z. B. Mail, Messenger, AirDrop). Die PDF wird nicht hochgeladen.',
+  'export.shareUnsupported':
+    'Dieser Browser kann Dateien nicht direkt teilen. Die PDF wird heruntergeladen, du kannst sie dann z. B. per E-Mail versenden.',
+  'export.shareReady':
+    'Die PDF ist fertig. Tippe auf „Jetzt teilen“, um das Teilen-Menü zu öffnen.',
+  'export.shareOne': '{n} Seite teilen',
+  'export.shareMany': '{n} Seiten teilen',
+  'export.shareNow': 'Jetzt teilen',
+  'export.sharing': 'Teile…',
+  'export.downloadOne': '{n} Seite herunterladen',
+  'export.downloadMany': '{n} Seiten herunterladen',
 
   'newDoc.title': 'Neues Dokument',
   'newDoc.titleAppend': 'Neue Seite',
