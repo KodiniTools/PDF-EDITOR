@@ -54,9 +54,9 @@ if (__PRIVATE__) {
     privateShortcuts.value = m.PRIVATE_SHORTCUTS
   })
 }
-const outputMode = ref<'export' | 'print'>('export')
+const outputMode = ref<'export' | 'print' | 'share'>('export')
 
-function openOutput(mode: 'export' | 'print'): void {
+function openOutput(mode: 'export' | 'print' | 'share'): void {
   outputMode.value = mode
   showExport.value = true
 }
@@ -333,6 +333,7 @@ onBeforeUnmount(() => {
       @help="showHelp = true"
       @export="openOutput('export')"
       @print="openOutput('print')"
+      @share="openOutput('share')"
       @edit-signature="showSignature = true"
     />
 

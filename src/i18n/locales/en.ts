@@ -46,6 +46,7 @@ export const en: Record<MessageKey, string> = {
   'error.notPdfOrImage': 'Not a PDF or image file.',
   'error.noPages': 'The PDF contains no pages.',
   'error.exportFailed': 'Export failed: {message}',
+  'error.shareFailed': "Sharing wasn't possible. The PDF was downloaded instead.",
   'error.printFailed': 'Printing failed. Alternatively, export the PDF and print it.',
   'error.signatureFailed': 'The signature could not be inserted.',
   'error.imageInsertFailed': 'The image could not be inserted.',
@@ -144,6 +145,9 @@ export const en: Record<MessageKey, string> = {
   'toolbar.shortcuts': 'Keyboard shortcuts',
   'toolbar.shortcutsHint': 'Show keyboard shortcuts (? or F1)',
   'toolbar.print': 'Print',
+  'toolbar.share': 'Share',
+  'toolbar.shareHint':
+    "Share, e.g. via mail, messenger or AirDrop (your device's share menu; no upload)",
   'toolbar.printHint': 'Print (Ctrl+P or P)',
   'toolbar.export': 'Export',
   'toolbar.exportHint': 'Export (Ctrl+S)',
@@ -182,6 +186,19 @@ export const en: Record<MessageKey, string> = {
   'export.exportMany': 'Export {n} pages',
   'export.printOne': 'Print {n} page',
   'export.printMany': 'Print {n} pages',
+  'export.titleShare': 'Share',
+  'export.questionShare': 'Which pages should be shared?',
+  'export.shareNote':
+    "Your device's share menu opens next (e.g. mail, messenger, AirDrop). The PDF is not uploaded.",
+  'export.shareUnsupported':
+    "This browser can't share files directly. The PDF will be downloaded so you can send it, e.g. by email.",
+  'export.shareReady': 'The PDF is ready. Tap “Share now” to open the share menu.',
+  'export.shareOne': 'Share {n} page',
+  'export.shareMany': 'Share {n} pages',
+  'export.shareNow': 'Share now',
+  'export.sharing': 'Sharing…',
+  'export.downloadOne': 'Download {n} page',
+  'export.downloadMany': 'Download {n} pages',
 
   'newDoc.title': 'New document',
   'newDoc.titleAppend': 'New page',

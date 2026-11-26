@@ -391,4 +391,24 @@ describe('AppToolbar', () => {
       setCustomFontsForTest({})
     }
   })
+
+  it('„Teilen“ erscheint mit Dokument und fordert den Dialog an', async () => {
+    const store = useDocumentStore()
+    const wrapper = mount(AppToolbar)
+    expect(wrapper.find('[data-testid="share"]').exists()).toBe(false)
+    store.pages.push({
+      id: 'p',
+      sourceId: 's',
+      sourceIndex: 0,
+      box: { x: 0, y: 0, width: 100, height: 100 },
+      baseRotation: 0,
+      rotation: 0,
+      annotations: [],
+    })
+    await wrapper.vm.$nextTick()
+    const btn = wrapper.get('[data-testid="share"]')
+    expect(btn.text()).toBe('Teilen')
+    await btn.trigger('click')
+    expect(wrapper.emitted('share')).toHaveLength(1)
+  })
 })
