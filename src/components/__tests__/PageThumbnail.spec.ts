@@ -105,3 +105,14 @@ describe('PageThumbnail', () => {
     expect(wrapper.get('[data-kind="text"]').text()).toBe('neu')
   })
 })
+
+describe('AnnotationPreview', () => {
+  it('zeigt weitere Ebenen (z. B. private Formularwerte) im selben Seitenraum', async () => {
+    const { default: AnnotationPreview } = await import('@/components/AnnotationPreview.vue')
+    const wrapper = mount(AnnotationPreview, {
+      props: { size: { width: 600, height: 800 }, annotations: [] },
+      slots: { default: '<div data-testid="extra">Wert</div>' },
+    })
+    expect(wrapper.get('foreignObject [data-testid="extra"]').text()).toBe('Wert')
+  })
+})
